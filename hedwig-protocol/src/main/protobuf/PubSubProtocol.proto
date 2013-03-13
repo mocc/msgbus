@@ -73,6 +73,7 @@ enum OperationType{
     // end for requests only used for hedwig proxy
 
     CLOSESUBSCRIPTION = 6;
+    QUEUE_TOPIC_OP = 7;
 }
 
 /* A PubSubRequest is just a union of the various request types, with

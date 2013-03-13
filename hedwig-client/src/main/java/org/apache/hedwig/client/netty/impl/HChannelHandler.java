@@ -38,7 +38,7 @@ import org.apache.hedwig.client.data.PubSubData;
 import org.apache.hedwig.client.exceptions.NoResponseHandlerException;
 import org.apache.hedwig.client.netty.NetUtils;
 import org.apache.hedwig.client.handlers.AbstractResponseHandler;
-import org.apache.hedwig.client.handlers.StatsResponseHandler;
+import org.apache.hedwig.client.handlers.QueueResponseHandler;
 import org.apache.hedwig.client.handlers.SubscribeResponseHandler;
 import org.apache.hedwig.exceptions.PubSubException.UncertainStateException;
 import org.apache.hedwig.exceptions.PubSubException.UnexpectedConditionException;
@@ -77,11 +77,10 @@ public class HChannelHandler extends SimpleChannelHandler {
 		this.cfg = cfg;
 		this.channelManager = channelManager;
 		this.handlers = handlers;
-		 /* lizhhb for test */
+		 /* lizhhb add */
 		// Add general handlers here
-        handlers.put(OperationType.START_DELIVERY,
-                new StatsResponseHandler(cfg, channelManager));
-        /* lizhhb for test */
+        handlers.put(OperationType.QUEUE_TOPIC_OP, new QueueResponseHandler(cfg, channelManager));
+        /* lizhhb add */
 		subHandler = (SubscribeResponseHandler) handlers.get(OperationType.SUBSCRIBE);
 	}
 
@@ -120,7 +119,7 @@ public class HChannelHandler extends SimpleChannelHandler {
 			/* msgbus  team */
 			// Getting Hubs response. It should be optimized, to avoid too much unnecessary judgement. Fortunately it is
 			// in client.
-			PubSubData myPubSubData = txn2PubSubData.get(response.getTxnId());
+			/*PubSubData myPubSubData = txn2PubSubData.get(response.getTxnId());
 			if (myPubSubData != null && myPubSubData.operationType.equals(OperationType.START_DELIVERY)) {
 				
 				//channelManager.updateHosts(response.getMessage().getBody().toStringUtf8());
@@ -128,7 +127,7 @@ public class HChannelHandler extends SimpleChannelHandler {
 				txn2PubSubData.remove(response.getTxnId());
 				respHandler.handleResponse(response, myPubSubData, ctx.getChannel());
 				return;
-			}
+			}*/
 			/* msgbus  team */
 
 			// Subscribed messages being pushed to the client so handle/consume

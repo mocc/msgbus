@@ -59,6 +59,7 @@ import org.apache.hedwig.server.delivery.DeliveryManager;
 import org.apache.hedwig.server.delivery.FIFODeliveryManager;
 import org.apache.hedwig.server.handlers.CloseSubscriptionHandler;
 import org.apache.hedwig.server.handlers.ConsumeHandler;
+import org.apache.hedwig.server.handlers.QueueHandler;
 import org.apache.hedwig.server.handlers.Handler;
 import org.apache.hedwig.server.handlers.NettyHandlerBean;
 import org.apache.hedwig.server.handlers.PublishHandler;
@@ -235,10 +236,10 @@ public class PubSubServer {
         handlers.put(OperationType.CONSUME, new ConsumeHandler(tm, sm, conf));
         handlers.put(OperationType.CLOSESUBSCRIPTION,
                      new CloseSubscriptionHandler(conf, tm, sm, dm, subChannelMgr));
-        /* lizhhb for test */
-        handlers.put(OperationType.START_DELIVERY,
-                new StatsHandler(conf, tm, dm, pm, sm, subChannelMgr));
-        /* lizhhb for test */
+        /* lizhhb add */
+        handlers.put(OperationType.QUEUE_TOPIC_OP,
+                new QueueHandler(conf, tm, pm,dm,subChannelMgr,sm));
+        /* lizhhb add */
         handlers = Collections.unmodifiableMap(handlers);
         return handlers;
     }

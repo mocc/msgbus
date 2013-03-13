@@ -70,8 +70,7 @@ public class AsyncPubSubProducer {
 		
 		System.out.println("Start to asynsPublish!");
 		//first publish a message synchronously, to establish a connection.	
-		client.publish(topic, prefix+0);
-		
+		client.publish(topic, prefix+0);		
 		
 		if (numMessages == numPublished.incrementAndGet()) {
 			publishLatch.countDown();
@@ -97,6 +96,7 @@ public class AsyncPubSubProducer {
 						@Override
 						public void operationFailed(Object ctx,
 								final PubSubException exception) {
+							
 						}
 					}, null);			
 		}

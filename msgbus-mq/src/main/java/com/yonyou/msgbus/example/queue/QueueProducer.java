@@ -14,8 +14,6 @@ import org.apache.hedwig.exceptions.PubSubException.CouldNotConnectException;
 import org.apache.hedwig.exceptions.PubSubException.ServiceDownException;
 import org.apache.hedwig.protocol.PubSubProtocol.MessageSeqId;
 import org.apache.hedwig.protocol.PubSubProtocol.PublishResponse;
-import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionOptions;
-import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest.CreateOrAttach;
 import org.apache.hedwig.util.Callback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,12 +21,14 @@ import org.slf4j.LoggerFactory;
 import com.yonyou.msgbus.client.MessageQueueClient;
 import com.yonyou.msgbus.client.MsgBusClient;
 public class QueueProducer {
+	final MsgBusClient msgBusClient;
 	private MessageQueueClient client;
 	public static Logger logger = LoggerFactory.getLogger(QueueProducer.class);
 
 	public QueueProducer(String path) throws MalformedURLException, ConfigurationException {
-		final MsgBusClient msgBusClient = new MsgBusClient(path);
+		msgBusClient = new MsgBusClient(path);
 		client=msgBusClient.getMessageQueueClient();
+		
 	}
 
 	/**
@@ -36,15 +36,16 @@ public class QueueProducer {
 	 */
 	
 	public static void main(String[] args) throws Exception {
-		if (args.length < 3) {
+		String[] params={"test","50","100"};
+		if (params.length < 3) {
     		System.out.println("Parameters: queueName msgLen num");
 			return;
-		}
-		QueueProducer p=new QueueProducer("F:/Java Projects3/hedwig/hw_client.conf");
-		p.asyncSendWithResponse(args);		
+		}		
+		QueueProducer p=new QueueProducer("F:/Java Projects2/msgbus/hw_client.conf");
+		p.asyncSendWithResponse(params);		
 	}
 
-	public void send(String[] args) throws CouldNotConnectException, ServiceDownException {
+	public void send(String[] args) throws CouldNotConnectException, ServiceDownException, InterruptedException {
 		long start= System.currentTimeMillis();
 		String queueName = args[0];		
 		int num = Integer.parseInt(args[2]);
@@ -54,19 +55,16 @@ public class QueueProducer {
 		for (int i = 0; i < msgLen; i++) {
 			sb.append("a");
 		}
-		final String prefix = sb.toString();	
-		
-		SubscriptionOptions options = SubscriptionOptions.newBuilder()
-				.setCreateOrAttach(CreateOrAttach.CREATE_OR_ATTACH).setEnableResubscribe(false)
-				.setMessageWindowSize(10).build();
-		client.createQueue(queueName, false, options);
+		final String prefix = sb.toString();		
+	
+		client.createQueue(queueName);
 		for(int i=0; i<num; i++){
 			client.publish(queueName, prefix+i);
 			
 		}
 		long end= System.currentTimeMillis();
 		System.out.println("Sent "+ num +" messages in "+(end-start)+" ms");
-		client.close();
+		msgBusClient.close();
 	}
 	
 	public void asyncSendWithResponse(String args[]) throws Exception {		
@@ -97,12 +95,8 @@ public class QueueProducer {
 
 		long start = System.currentTimeMillis();
 		
-		System.out.println("Start to asynsPublish!");
-		//first publish a message synchronously, to establish a connection.		
-		SubscriptionOptions options = SubscriptionOptions.newBuilder()
-				.setCreateOrAttach(CreateOrAttach.CREATE_OR_ATTACH).setEnableResubscribe(false)
-				.setMessageWindowSize(10).build();
-		client.createQueue(queueName, false, options);
+		System.out.println("Start to asynsPublish!");		
+		client.createQueue(queueName);
 		client.publish(queueName, prefix+0);
 		
 		//publishedMsgs.put(prefix+0, res.getPublishedMsgId());
@@ -139,6 +133,7 @@ public class QueueProducer {
 				publishLatch.await(300, TimeUnit.SECONDS));
 		
 		System.out.println("AsyncPublished " + numMessages + " messages in " + (end - start) + " ms.");
+		msgBusClient.close();
 	}
 
 }

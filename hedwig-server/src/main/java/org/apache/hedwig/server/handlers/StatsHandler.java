@@ -69,7 +69,7 @@ public class StatsHandler extends BaseHandler {
 	@Override
 	public void handleRequestAtOwner(final PubSubRequest request, final Channel channel) {
 
-		if(request.getType().equals(OperationType.START_DELIVERY)) {
+		if(request.getType().equals(OperationType.QUEUE_TOPIC_OP)) {
 			getAvailableHubs(new Callback<String>(){
 
 				@Override

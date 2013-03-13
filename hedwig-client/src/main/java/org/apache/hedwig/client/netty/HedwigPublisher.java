@@ -32,6 +32,7 @@ import org.apache.hedwig.protocol.PubSubProtocol.Message;
 import org.apache.hedwig.protocol.PubSubProtocol.OperationType;
 import org.apache.hedwig.protocol.PubSubProtocol.PublishResponse;
 import org.apache.hedwig.protocol.PubSubProtocol.ResponseBody;
+import org.apache.hedwig.protoextensions.SubscriptionStateUtils;
 import org.apache.hedwig.util.Callback;
 
 /**
@@ -148,4 +149,28 @@ public class HedwigPublisher implements Publisher {
             delegate.operationFailed(ctx, exception);
         }
     }
+    
+    /*lizhhb add*/
+    public void createQueue(ByteString queueName, Callback<ResponseBody> callback, Object context) {
+		Message message=Message.newBuilder().setBody(ByteString.copyFromUtf8("create")).build();
+		PubSubData pubSubData = new PubSubData(queueName, message, SubscriptionStateUtils.QUEUE_SUBID_BS,
+				OperationType.QUEUE_TOPIC_OP, null, callback, context);			
+		channelManager.submitOp(pubSubData);
+	}
+    
+    public void deleteQueue(ByteString queueName, Callback<ResponseBody> callback, Object context) {
+		Message message=Message.newBuilder().setBody(ByteString.copyFromUtf8("delete")).build();
+		PubSubData pubSubData = new PubSubData(queueName, message, SubscriptionStateUtils.QUEUE_SUBID_BS,
+				OperationType.QUEUE_TOPIC_OP, null, callback, context);			
+		channelManager.submitOp(pubSubData);		
+	}    
+    
+    // Process it in QueueHandler at present, need to change
+	public void getAvailableHubs(Callback<ResponseBody> callback, Object context	) {		
+		Message message=Message.newBuilder().setBody(ByteString.copyFromUtf8("get hubs")).build();
+		PubSubData pubSubData = new PubSubData(ByteString.EMPTY, message, SubscriptionStateUtils.QUEUE_SUBID_BS,
+				OperationType.QUEUE_TOPIC_OP, null, callback, context);			
+		channelManager.submitOp(pubSubData);
+	}
+    
 }

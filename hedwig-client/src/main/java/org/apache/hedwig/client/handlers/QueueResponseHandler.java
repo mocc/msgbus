@@ -23,17 +23,21 @@ import org.jboss.netty.channel.Channel;
 
 import org.apache.hedwig.client.conf.ClientConfiguration;
 import org.apache.hedwig.client.data.PubSubData;
+import org.apache.hedwig.client.data.TopicSubscriber;
 import org.apache.hedwig.client.netty.HChannelManager;
+import org.apache.hedwig.exceptions.PubSubException;
 import org.apache.hedwig.exceptions.PubSubException.ClientNotSubscribedException;
 import org.apache.hedwig.exceptions.PubSubException.ServiceDownException;
 import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
-
+import org.apache.hedwig.protocol.PubSubProtocol.ResponseBody;
+import org.apache.hedwig.util.Callback;
+import static org.apache.hedwig.util.VarArgs.va;
 /* lizhhb add */
-public class StatsResponseHandler extends AbstractResponseHandler {
+public class QueueResponseHandler extends AbstractResponseHandler {
 
-    private static Logger logger = LoggerFactory.getLogger(StatsResponseHandler.class);
+    private static Logger logger = LoggerFactory.getLogger(QueueResponseHandler.class);
 
-    public StatsResponseHandler(ClientConfiguration cfg,
+    public QueueResponseHandler(ClientConfiguration cfg,
                                       HChannelManager channelManager) {
         super(cfg, channelManager);
     }
@@ -45,8 +49,7 @@ public class StatsResponseHandler extends AbstractResponseHandler {
         switch (response.getStatusCode()) {
         case SUCCESS:
             // since for unsubscribe request, we close subscription first
-            // for now, we don't need to do anything now.
-        	pubSubData.context=response.getMessage().getBody().toStringUtf8();        	
+            // for now, we don't need to do anything now.        	       	
             pubSubData.getCallback().operationFinished(pubSubData.context, null);           
             break;
         case CLIENT_NOT_SUBSCRIBED:

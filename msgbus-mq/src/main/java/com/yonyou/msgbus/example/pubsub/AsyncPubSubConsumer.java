@@ -9,21 +9,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.hedwig.protocol.PubSubProtocol.Message;
-import org.apache.hedwig.protocol.PubSubProtocol.ResponseBody;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionOptions;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest.CreateOrAttach;
 import org.apache.hedwig.util.Callback;
 import org.apache.hedwig.client.api.MessageHandler;
 import org.apache.hedwig.client.exceptions.AlreadyStartDeliveryException;
 import org.apache.hedwig.client.exceptions.InvalidSubscriberIdException;
-import org.apache.hedwig.exceptions.PubSubException;
 import org.apache.hedwig.exceptions.PubSubException.ClientAlreadySubscribedException;
 import org.apache.hedwig.exceptions.PubSubException.ClientNotSubscribedException;
 import org.apache.hedwig.exceptions.PubSubException.CouldNotConnectException;
 import org.apache.hedwig.exceptions.PubSubException.ServiceDownException;
-
 import com.google.protobuf.ByteString;
-import com.yonyou.msgbus.client.MessageQueueClient;
 import com.yonyou.msgbus.client.MsgBusClient;
 import com.yonyou.msgbus.client.PubSubClient;
 
@@ -53,7 +49,7 @@ public class AsyncPubSubConsumer {
 		final CountDownLatch receiveLatch = new CountDownLatch(1);
 
 		long start = System.currentTimeMillis();
-		String path = "F:/Java Projects3/hedwig/hw_client.conf";	
+		String path = "F:/Java Projects2/msgbus/hw_client.conf";	
 		final MsgBusClient client = new MsgBusClient(path);	
 		
 		final PubSubClient pubSubClient=client.getPubSubClient();
@@ -75,14 +71,12 @@ public class AsyncPubSubConsumer {
 					receiveLatch.countDown();
 				}		
 				
-				/*try {					
+				try {					
 					pubSubClient.consume(myTopic, mySubid, msg.getMsgId());
 				} catch (ClientNotSubscribedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
-				}*/
-				// this is necessary!
-				callback.operationFinished(context, null);
+				}			
 			}
 		});
 		

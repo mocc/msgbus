@@ -298,6 +298,7 @@ public class HedwigSubscriber implements Subscriber {
 
     // This is a helper method to determine if a subscriberId is valid as either
     // a hub or local subscriber
+    /*lizhhb modified for queue*/
     private boolean isValidSubscriberId(ByteString subscriberId, boolean isHub) {
         if ((isHub && !SubscriptionStateUtils.isHubSubscriber(subscriberId))
                 || (!isHub && SubscriptionStateUtils.isHubSubscriber(subscriberId)))
@@ -417,17 +418,6 @@ public class HedwigSubscriber implements Subscriber {
         }
         logger.debug("Closing subscription asynchronously for {}.", topicSubscriber);
         channelManager.asyncCloseSubscription(topicSubscriber, callback, context);
-    }
+    }  
     
-    /* lizhhb add */  
-    /**
-     * @ Follow this routine to write new request
-     */
-	public void getAvailableHubs(ByteString topic, ByteString subscriberId,
-			Callback<ResponseBody> callback, Object context	) {		
-		PubSubData pubSubData = new PubSubData(topic, null, subscriberId,
-				OperationType.START_DELIVERY, null, callback, context);			
-		channelManager.submitOp(pubSubData);
-	}	
-    /* lizhhb add */
 }

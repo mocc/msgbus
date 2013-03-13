@@ -5,9 +5,9 @@ public class MultiQueueConsumer extends Thread {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		AsyncQueueConsumer c = null;
+		QueueConsumer c = null;
 
-		c = new AsyncQueueConsumer();
+		c = new QueueConsumer();
 
 		String[] myArgs = new String[3];
 		myArgs[0] = "test";

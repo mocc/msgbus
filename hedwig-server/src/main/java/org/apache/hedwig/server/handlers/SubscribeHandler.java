@@ -59,11 +59,11 @@ public class SubscribeHandler extends BaseHandler {
 	private final SubscriptionManager subMgr;
 	private final SubscriptionChannelManager subChannelMgr;
 	/* msgbus  team */
-	public static final String QUEUE_PRIFIX = "q_";
+	//public static final String QUEUE_PRIFIX = "q_";
 	//public static final String QUEUE_SUSBSCRIBER_ID = "0";
-	public static final String QUEUE_CREATE_ID = "1";
+	//public static final String QUEUE_CREATE_ID = "1";	
 	/* msgbus  team */
-
+	
 	// op stats
 	private final OpStats subStats;
 
@@ -89,7 +89,7 @@ public class SubscribeHandler extends BaseHandler {
 		}
 
 		final ByteString topic = request.getTopic();
-
+		
 		MessageSeqId seqId;
 		try {
 			seqId = persistenceMgr.getCurrentSeqIdForTopic(topic);
@@ -104,61 +104,19 @@ public class SubscribeHandler extends BaseHandler {
 		}
 
 		final SubscribeRequest subRequest = request.getSubscribeRequest();
-		final ByteString subscriberId = subRequest.getSubscriberId();
+		final ByteString subscriberId = subRequest.getSubscriberId();		
 
 		MessageSeqId lastSeqIdPublished = MessageSeqId.newBuilder(seqId)
 				.setLocalComponent(seqId.getLocalComponent()).build();
 
-		final long requestTime = MathUtils.now();
-		/*lizhhb*/
-		if(topic.toStringUtf8().startsWith(SubscribeHandler.QUEUE_PRIFIX)
-				&&subscriberId.toStringUtf8().equals(SubscribeHandler.QUEUE_CREATE_ID)) {
-			//just write subData.
-			SubscribeRequest mySubRequest=SubscribeRequest.newBuilder(subRequest).setSubscriberId(ByteString.copyFromUtf8("0")).build();
-			subMgr.serveSubscribeRequest(topic, mySubRequest, lastSeqIdPublished, new Callback<SubscriptionData>() {
-
-				@Override
-				public void operationFailed(Object ctx, PubSubException exception) {
-					channel.write(PubSubResponseUtils.getResponseForException(exception, request.getTxnId()))
-					.addListener(ChannelFutureListener.CLOSE);
-					logger.error("Error serving subscribe request (" + request.getTxnId() + ") for (topic: "
-							+ topic.toStringUtf8() + " , subscriber: " + subscriberId.toStringUtf8() + ")",
-							exception);
-				}
-
-				@Override
-				public void operationFinished(Object ctx, SubscriptionData subData) {
-					synchronized (channel) {
-						if (!channel.isConnected()) {
-							// channel got disconnected while we were processing the
-							// subscribe request,
-							// nothing much we can do in this case
-							subStats.incrementFailedOps();
-							return;
-						}
-					}
-					// First write success and then tell the delivery manager,
-					// otherwise the first message might go out before the response
-					// to the subscribe
-					SubscribeResponse.Builder subRespBuilder = SubscribeResponse.newBuilder().setPreferences(
-							subData.getPreferences());
-					ResponseBody respBody = ResponseBody.newBuilder().setSubscribeResponse(subRespBuilder)
-							.build();
-					channel.write(PubSubResponseUtils.getSuccessResponse(request.getTxnId(), respBody));
-					return;
-				}
-			}, null);
-			return;
-		}
-		/*lizhhb*/
-
-
+		final long requestTime = MathUtils.now();		
+		
 		subMgr.serveSubscribeRequest(topic, subRequest, lastSeqIdPublished, new Callback<SubscriptionData>() {
 
 			@Override
 			public void operationFailed(Object ctx, PubSubException exception) {
 				channel.write(PubSubResponseUtils.getResponseForException(exception, request.getTxnId()))
-				.addListener(ChannelFutureListener.CLOSE);
+						.addListener(ChannelFutureListener.CLOSE);
 				logger.error("Error serving subscribe request (" + request.getTxnId() + ") for (topic: "
 						+ topic.toStringUtf8() + " , subscriber: " + subscriberId.toStringUtf8() + ")",
 						exception);
@@ -167,7 +125,7 @@ public class SubscribeHandler extends BaseHandler {
 
 			@Override
 			public void operationFinished(Object ctx, SubscriptionData subData) {
-
+				
 				TopicSubscriber topicSub = new TopicSubscriber(topic, subscriberId);
 				synchronized (channel) {
 					if (!channel.isConnected()) {
@@ -212,7 +170,7 @@ public class SubscribeHandler extends BaseHandler {
 					PubSubException pse = new PubSubException.InvalidMessageFilterException(errMsg, t);
 					subStats.incrementFailedOps();
 					channel.write(PubSubResponseUtils.getResponseForException(pse, request.getTxnId()))
-					.addListener(ChannelFutureListener.CLOSE);
+							.addListener(ChannelFutureListener.CLOSE);
 					return;
 				}
 				boolean forceAttach = false;
@@ -228,7 +186,7 @@ public class SubscribeHandler extends BaseHandler {
 							+ " is already being served on a different channel " + oldChannel + ".");
 					subStats.incrementFailedOps();
 					channel.write(PubSubResponseUtils.getResponseForException(pse, request.getTxnId()))
-					.addListener(ChannelFutureListener.CLOSE);
+							.addListener(ChannelFutureListener.CLOSE);
 					return;
 				}
 				// First write success and then tell the delivery manager,

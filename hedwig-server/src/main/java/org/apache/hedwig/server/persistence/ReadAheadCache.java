@@ -259,14 +259,10 @@ public class ReadAheadCache implements PersistenceManager, Runnable, HedwigJMXSe
 	 * 3. Enqueue the request so that the cache maintainer thread can delete all message-ids older than the one
 	 * specified
 	 */
-	/*public void deliveredUntil(ByteString topic, Long seqId) {		
-		enqueueWithoutFailure(new DeliveredUntil(topic, seqId));
-	}*/
 	
-	// msgbus team: message is removed right away from cache after consumed
 	public void deliveredUntil(ByteString topic, Long seqId) {		
-		return;
-	}
+		enqueueWithoutFailure(new DeliveredUntil(topic, seqId));
+	}	
 
 	/**
 	 * Another method from {@link PersistenceManager}.

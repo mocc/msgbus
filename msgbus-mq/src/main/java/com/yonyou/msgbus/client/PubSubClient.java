@@ -16,6 +16,7 @@ import org.apache.hedwig.protocol.PubSubProtocol.MessageSeqId;
 import org.apache.hedwig.protocol.PubSubProtocol.PublishResponse;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionOptions;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest.CreateOrAttach;
+import org.apache.hedwig.protoextensions.SubscriptionStateUtils;
 import org.apache.hedwig.util.Callback;
 
 import com.google.protobuf.ByteString;
@@ -26,7 +27,6 @@ public class PubSubClient {
 
 	private Publisher publisher;
 	private Subscriber subscriber;
-	private boolean isClosed;
 
 	// Invisible to users
 	PubSubClient(Publisher publisher, Subscriber subscriber) {
@@ -35,36 +35,29 @@ public class PubSubClient {
 	}
 
 	public PublishResponse publish(String topic, String msg) throws CouldNotConnectException, ServiceDownException {
-		if (isClosed) {
-			throw new IllegalStateException("Client has already been closed");
-		}
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
-		Message myMessage = Message.newBuilder().setBody(ByteString.copyFromUtf8(msg)).build();
+		
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
+		Message myMessage = Message.newBuilder().setBody(ByteString.copyFromUtf8(msg)).build();	
 		return publisher.publish(myTopic, myMessage);
 	}
 
-	public void asyncPublish(String topic, String msg, Callback<Void> callback, Object context) {
-		if (isClosed) {
-			throw new IllegalStateException("Client has already been closed");
-		}
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
+	public void asyncPublish(String topic, String msg, Callback<Void> callback, Object context) {		
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
 		Message myMsg = Message.newBuilder().setBody(ByteString.copyFromUtf8(msg)).build();
 		publisher.asyncPublish(myTopic, myMsg, callback, context);
 	}
 
-	public void asyncPublishWithResponse(String topic, String msg, Callback<PublishResponse> callback, Object context) {
-		if (isClosed) {
-			throw new IllegalStateException("Client has already been closed");
-		}
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
+	public void asyncPublishWithResponse(String topic, String msg, Callback<PublishResponse> callback, Object context) {		
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
 		Message myMsg = Message.newBuilder().setBody(ByteString.copyFromUtf8(msg)).build();
 		publisher.asyncPublishWithResponse(myTopic, myMsg, callback, context);
 	}
 
+	// Check the subscriberId in sub/pub operation
 	protected void subscribe(String topic, String subscriberId, CreateOrAttach mode) throws CouldNotConnectException,
 			ClientAlreadySubscribedException, ServiceDownException, InvalidSubscriberIdException {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
-		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
+		ByteString mySubscriberId = checkAndConvertSubid(subscriberId);
 		subscriber.subscribe(myTopic, mySubscriberId, mode);
 	}
 
@@ -72,15 +65,20 @@ public class PubSubClient {
 	public void subscribe(String topic, String subscriberId, SubscriptionOptions options)
 			throws CouldNotConnectException, ClientAlreadySubscribedException, ServiceDownException,
 			InvalidSubscriberIdException {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
-		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
+		ByteString mySubscriberId = checkAndConvertSubid(subscriberId);
 		subscriber.subscribe(myTopic, mySubscriberId, options);
 	}
 
 	protected void asyncSubscribe(String topic, String subscriberId, CreateOrAttach mode, Callback<Void> callback,
 			Object context) {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
-		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
+		ByteString mySubscriberId=null;
+		try {
+			mySubscriberId = checkAndConvertSubid(subscriberId);
+		} catch (InvalidSubscriberIdException e) {
+			callback.operationFailed(context, new ServiceDownException(e));
+		}
 		SubscriptionOptions options = SubscriptionOptions.newBuilder().setCreateOrAttach(mode).build();
 		subscriber.asyncSubscribe(myTopic, mySubscriberId, options, callback, context);
 	}
@@ -88,36 +86,46 @@ public class PubSubClient {
 	// merge with above function
 	public void asyncSubscribe(String topic, String subscriberId, SubscriptionOptions options, Callback<Void> callback,
 			Object context) {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
-		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
+		ByteString mySubscriberId=null;
+		try {
+			mySubscriberId = checkAndConvertSubid(subscriberId);
+		} catch (InvalidSubscriberIdException e) {
+			callback.operationFailed(context, new ServiceDownException(e));
+		}
 		subscriber.asyncSubscribe(myTopic, mySubscriberId, options, callback, context);
 	}
 
 	// this will call perform closeSubscription in advance
 	public void unsubscribe(String topic, String subscriberId) throws CouldNotConnectException,
 			ClientNotSubscribedException, ServiceDownException, InvalidSubscriberIdException {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
-		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
+		ByteString mySubscriberId = checkAndConvertSubid(subscriberId);
 		subscriber.unsubscribe(myTopic, mySubscriberId);
 	}
 
 	public void asyncUnsubscribe(final String topic, final String subscriberId, final Callback<Void> callback,
 			final Object context) {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
-		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
+		ByteString mySubscriberId=null;
+		try {
+			mySubscriberId = checkAndConvertSubid(subscriberId);
+		} catch (InvalidSubscriberIdException e) {
+			callback.operationFailed(context, new ServiceDownException(e));
+		}
 		subscriber.asyncUnsubscribe(myTopic, mySubscriberId, callback, context);
 	}
 
 	public void consume(String topic, String subscriberId, MessageSeqId messageSeqId)
 			throws ClientNotSubscribedException {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
 		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
 		subscriber.consume(myTopic, mySubscriberId, messageSeqId);
 	}
 
 	public boolean hasSubscription(String topic, String subscriberId) throws CouldNotConnectException,
 			ServiceDownException {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
 		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
 		return subscriber.hasSubscription(myTopic, mySubscriberId);
 	}
@@ -130,35 +138,56 @@ public class PubSubClient {
 		return null;
 	}
 
-	public void startDelivery(final String topic, final String subscriberId, MessageHandler messageHandler)
+	public void startDelivery(final String topic, final String subscriberId, final MessageHandler handler)
 			throws ClientNotSubscribedException, AlreadyStartDeliveryException {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
+		ByteString myTopic = ByteString.copyFromUtf8(topic);		
 		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
-		subscriber.startDelivery(myTopic, mySubscriberId, messageHandler);
+		subscriber.startDelivery(myTopic, mySubscriberId, new MessageHandler(){
+
+			@Override
+			public void deliver(ByteString topic, ByteString subscriberId, Message msg, Callback<Void> callback,
+					Object context) {
+				//handler.deliver(topic, subscriberId, msg, callback, context);
+				handler.deliver(topic, subscriberId, msg, callback, context);				
+				callback.operationFinished(context, null);
+			}
+			
+		});
 	}
 
-	public void startDeliveryWithFilter(final String topic, final String subscriberId, MessageHandler messageHandler,
+	public void startDeliveryWithFilter(final String topic, final String subscriberId, final MessageHandler handler,
 			ClientMessageFilter messageFilter) throws ClientNotSubscribedException, AlreadyStartDeliveryException {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
+		
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
 		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
-		subscriber.startDeliveryWithFilter(myTopic, mySubscriberId, messageHandler, messageFilter);
+		subscriber.startDeliveryWithFilter(myTopic, mySubscriberId, new MessageHandler(){
+
+			@Override
+			public void deliver(ByteString topic, ByteString subscriberId, Message msg, Callback<Void> callback,
+					Object context) {
+				//handler.deliver(topic, subscriberId, msg, callback, context);
+				handler.deliver(topic, subscriberId, msg, callback, context);				
+				callback.operationFinished(context, null);
+			}
+			
+		}, messageFilter);
 	}
 
 	public void stopDelivery(final String topic, final String subscriberId) throws ClientNotSubscribedException {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
 		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
 		subscriber.stopDelivery(myTopic, mySubscriberId);
 	}
 
 	public void closeSubscription(String topic, String subscriberId) throws ServiceDownException {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
 		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
 		subscriber.closeSubscription(myTopic, mySubscriberId);
 	}
 
 	public void asyncCloseSubscription(final String topic, final String subscriberId, final Callback<Void> callback,
 			final Object context) {
-		ByteString myTopic = ByteString.copyFromUtf8(PubSubClient.TOPIC_PREFIX + topic);
+		ByteString myTopic = ByteString.copyFromUtf8(topic);
 		ByteString mySubscriberId = ByteString.copyFromUtf8(subscriberId);
 		subscriber.asyncCloseSubscription(myTopic, mySubscriberId, callback, context);
 	}
@@ -167,8 +196,10 @@ public class PubSubClient {
 	// addSubscriptionListener()
 	// removeSubscriptionListener
 
-	void close() {
-		isClosed = true;
+	private ByteString checkAndConvertSubid(String subscriberId) throws InvalidSubscriberIdException {
+		if(subscriberId.equals(SubscriptionStateUtils.QUEUE_SUBID_STR)){
+			throw new InvalidSubscriberIdException("subscriberId in PubSub mode can not be "+subscriberId);
+		}
+		return ByteString.copyFromUtf8(subscriberId);
 	}
-
 }

@@ -8,12 +8,6 @@ import org.apache.hedwig.client.HedwigClient;
 import org.apache.hedwig.client.api.Publisher;
 import org.apache.hedwig.client.api.Subscriber;
 import org.apache.hedwig.client.conf.ClientConfiguration;
-import org.apache.hedwig.client.netty.HedwigSubscriber;
-import org.apache.hedwig.exceptions.PubSubException;
-import org.apache.hedwig.protocol.PubSubProtocol.ResponseBody;
-import org.apache.hedwig.util.Callback;
-
-import com.google.protobuf.ByteString;
 
 public class MsgBusClient {
 	public HedwigClient client;
@@ -21,8 +15,7 @@ public class MsgBusClient {
 	public Subscriber subscriber;
 	
 	private PubSubClient pubSubClient=null;
-	private MessageQueueClient mqClient=null;
-	private static final ByteString STATS_ID = ByteString.copyFromUtf8("2");
+	private MessageQueueClient mqClient=null;	
 	
 	public MsgBusClient() {
 		ClientConfiguration conf = new ClientConfiguration();
@@ -57,15 +50,11 @@ public class MsgBusClient {
 			return mqClient;
 	}
 	
-	public void getAvailableHubs(Callback<ResponseBody> callback) {
+	/*public void getAvailableHubs(Callback<ResponseBody> callback) {
 		((HedwigSubscriber)subscriber).getAvailableHubs(ByteString.copyFromUtf8("q_test"), STATS_ID, callback, null);
-	}
+	}*/	
 	
-	public void close() {
-		if(pubSubClient!=null)
-			pubSubClient.close();
-		if(mqClient!=null)
-			mqClient.close();		
+	public void close() {			
         client.close();
     }
 }

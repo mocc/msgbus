@@ -121,7 +121,7 @@ public class ClientConfiguration extends AbstractConfiguration {
     // the client app can be consuming at a time for topic subscription before
     // we throttle things and stop reading from the Netty Channel.
     public int getMaximumOutstandingMessages() {
-        return conf.getInt(MAX_OUTSTANDING_MESSAGES, 10);
+        return conf.getInt(MAX_OUTSTANDING_MESSAGES, 100);
     }
 
     // This parameter is used to determine how long we wait (in milliseconds)
