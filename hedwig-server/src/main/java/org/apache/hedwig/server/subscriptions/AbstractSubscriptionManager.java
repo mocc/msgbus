@@ -25,9 +25,11 @@ import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.bookkeeper.versioning.Version;
 import org.apache.hedwig.exceptions.PubSubException;
+import org.apache.hedwig.exceptions.PubSubException.ServerNotResponsibleForTopicException;
 import org.apache.hedwig.protocol.PubSubProtocol.MessageSeqId;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest.CreateOrAttach;
@@ -40,7 +42,6 @@ import org.apache.hedwig.protoextensions.SubscriptionStateUtils;
 import org.apache.hedwig.server.common.ServerConfiguration;
 import org.apache.hedwig.server.common.TopicOpQueuer;
 import org.apache.hedwig.server.delivery.DeliveryManager;
-import org.apache.hedwig.server.handlers.SubscribeHandler;
 import org.apache.hedwig.server.persistence.PersistenceManager;
 import org.apache.hedwig.server.topics.TopicManager;
 import org.apache.hedwig.server.topics.TopicOwnershipChangeListener;
@@ -79,12 +80,18 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 
 	protected final Callback<Void> noopCallback = new NoopCallback<Void>();
 
+	/*msgbus team*/
+	private final AtomicLong timeStampForTimerTask;
+
+	/*msgbus team*/
+
 	static class NoopCallback<T> implements Callback<T> {
 		@Override
 		public void operationFailed(Object ctx, PubSubException exception) {
 			logger.warn("Exception found in AbstractSubscriptionManager : ", exception);
 		}
 
+		@Override
 		public void operationFinished(Object ctx, T resultOfOperation) {
 		};
 	}
@@ -96,6 +103,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 		tm.addTopicOwnershipChangeListener(this);
 		this.pm = pm;
 		this.dm = dm;
+		this.timeStampForTimerTask = new AtomicLong(0);
 		// Schedule the recurring MessagesConsumedTask only if a
 		// PersistenceManager is passed.
 		if (pm != null) {
@@ -142,6 +150,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 				if (topicSubscriptions.isEmpty()
 						|| (minConsumedFromMap != null && minConsumedFromMap < minConsumedMessage)
 						|| (minConsumedFromMap == null && minConsumedMessage != 0)) {
+					timeStampForTimerTask.set(System.currentTimeMillis());
 					topic2MinConsumedMessagesMap.put(topic, minConsumedMessage);
 					pm.consumedUntil(topic, minConsumedMessage);
 				} else if (hasBound) {
@@ -150,6 +159,60 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 			}
 		}
 	}
+
+	/**
+	 * Get the approximate message count for the given topic.
+	 * 
+	 * @param topic
+	 * @param callback
+	 * @param ctx
+	 * @author Zac, msgbus team
+	 */
+	public void queryMessagesForTopic(ByteString topic,
+			Callback<Long> callback, Object ctx) {
+		queuer.pushAndMaybeRun(topic, new QueryMessagesCountOp(topic, callback,
+				ctx));
+	}
+
+	/*msgbus team*/
+	private class QueryMessagesCountOp extends
+	TopicOpQueuer.AsynchronousOp<Long> {
+		public QueryMessagesCountOp(ByteString topic, Callback<Long> callback,
+				Object ctx) {
+			queuer.super(topic, callback, ctx);
+		}
+
+		@Override
+		public void run() {
+			Long minConsumedFromMap = topic2MinConsumedMessagesMap.get(topic);
+			long lastUpdate = timeStampForTimerTask.get(), lastMsgSeqId = 0;
+			try {
+				lastMsgSeqId = pm.getCurrentSeqIdForTopic(topic)
+						.getLocalComponent();
+			} catch (ServerNotResponsibleForTopicException e) {
+				cb.operationFailed(ctx, e);
+			}
+			// Is 5s to0 small or to big? The tests have to say something.
+			if(System.currentTimeMillis() - lastUpdate <= 5000){
+				cb.operationFinished(ctx, lastMsgSeqId - minConsumedFromMap);
+			}
+			final Map<ByteString, InMemorySubscriptionState> topicSubscriptions = top2sub2seq
+					.get(topic);
+			if (topicSubscriptions == null) {
+				cb.operationFinished(ctx, 0l);
+			}
+			long minConsumedMessage = Long.MAX_VALUE;
+			for (InMemorySubscriptionState curSubscription : topicSubscriptions
+					.values()) {
+				if (curSubscription.getLastPersistedSeqId() < minConsumedMessage) {
+					minConsumedMessage = curSubscription
+							.getLastPersistedSeqId();
+				}
+			}
+			cb.operationFinished(ctx, lastMsgSeqId - minConsumedMessage);
+		}
+	}
+	/*msgbus team*/
 
 	private class AcquireOp extends TopicOpQueuer.AsynchronousOp<Void> {
 		public AcquireOp(ByteString topic, Callback<Void> callback, Object ctx) {
@@ -585,16 +648,16 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 			}
 		}
 	}
-	
+
 	/* lizhhb */
 	public void addConsumeSeqIdForSubscriber(ByteString topic, ByteString subscriberId, MessageSeqId consumeSeqId,
 			Callback<Void> callback, Object ctx) {
-		
+
 		dm.addConsumeSeqForQueue(topic, subscriberId, consumeSeqId, this, callback, ctx);
 	}
 	/* lizhhb */
-	
-	
+
+
 	@Override
 	public void setConsumeSeqIdForSubscriber(ByteString topic, ByteString subscriberId, MessageSeqId consumeSeqId,
 			Callback<Void> callback, Object ctx) {
@@ -645,23 +708,23 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 
 			deleteSubscriptionData(topic, subscriberId, topicSubscriptions.get(subscriberId).getVersion(),
 					new Callback<Void>() {
-						@Override
-						public void operationFailed(Object ctx, PubSubException exception) {
-							cb.operationFailed(ctx, exception);
-						}
+				@Override
+				public void operationFailed(Object ctx, PubSubException exception) {
+					cb.operationFailed(ctx, exception);
+				}
 
-						@Override
-						public void operationFinished(Object ctx, Void resultOfOperation) {
-							topicSubscriptions.remove(subscriberId);
-							// Notify listeners if necessary.
-							if (!SubscriptionStateUtils.isHubSubscriber(subscriberId)
-									&& !hasLocalSubscriptions(topicSubscriptions))
-								notifyLastLocalUnsubscribe(topic);
+				@Override
+				public void operationFinished(Object ctx, Void resultOfOperation) {
+					topicSubscriptions.remove(subscriberId);
+					// Notify listeners if necessary.
+					if (!SubscriptionStateUtils.isHubSubscriber(subscriberId)
+							&& !hasLocalSubscriptions(topicSubscriptions))
+						notifyLastLocalUnsubscribe(topic);
 
-							updateMessageBound(topic);
-							cb.operationFinished(ctx, null);
-						}
-					}, ctx);
+					updateMessageBound(topic);
+					cb.operationFinished(ctx, null);
+				}
+			}, ctx);
 
 		}
 
@@ -683,6 +746,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 	/**
 	 * Method to stop this class gracefully including releasing any resources used and stopping all threads spawned.
 	 */
+	@Override
 	public void stop() {
 		timer.cancel();
 		try {
