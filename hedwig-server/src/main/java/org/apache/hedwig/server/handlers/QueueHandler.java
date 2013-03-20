@@ -39,6 +39,7 @@ import org.apache.hedwig.server.netty.ServerStats;
 import org.apache.hedwig.server.netty.ServerStats.OpStats;
 import org.apache.hedwig.server.netty.UmbrellaHandler;
 import org.apache.hedwig.server.persistence.PersistenceManager;
+import org.apache.hedwig.server.subscriptions.AbstractSubscriptionManager;
 import org.apache.hedwig.server.subscriptions.SubscriptionManager;
 import org.apache.hedwig.server.topics.TopicManager;
 import org.apache.hedwig.server.topics.ZkTopicManager;
@@ -47,186 +48,210 @@ import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFutureListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import com.google.protobuf.ByteString;
 
 /* lizhhb add */
 public class QueueHandler extends BaseHandler {
-	static Logger logger = LoggerFactory.getLogger(QueueHandler.class);
+    static Logger logger = LoggerFactory.getLogger(QueueHandler.class);
 
-	private final PersistenceManager persistenceMgr;
-	private final SubscriptionManager subMgr;
-	private final DeliveryManager deliveryMgr;
-	private final SubscriptionChannelManager subChannelMgr;
+    private final PersistenceManager persistenceMgr;
+    private final SubscriptionManager subMgr;
+    private final DeliveryManager deliveryMgr;
+    private final SubscriptionChannelManager subChannelMgr;
 
-	// op stats
-	private final OpStats subStats;
+    // op stats
+    private final OpStats subStats;
 
-	public QueueHandler(ServerConfiguration cfg, TopicManager topicMgr, PersistenceManager persistenceMgr,
-			DeliveryManager deliveryMgr, SubscriptionChannelManager subChannelMgr, SubscriptionManager subMgr) {
-		super(topicMgr, cfg);
-		this.persistenceMgr = persistenceMgr;
-		this.subMgr = subMgr;
-		this.deliveryMgr = deliveryMgr;
-		this.subChannelMgr = subChannelMgr;
-		subStats = ServerStats.getInstance().getOpStats(OperationType.SUBSCRIBE);
-	}
+    public QueueHandler(ServerConfiguration cfg, TopicManager topicMgr, PersistenceManager persistenceMgr,
+            DeliveryManager deliveryMgr, SubscriptionChannelManager subChannelMgr, SubscriptionManager subMgr) {
+        super(topicMgr, cfg);
+        this.persistenceMgr = persistenceMgr;
+        this.subMgr = subMgr;
+        this.deliveryMgr = deliveryMgr;
+        this.subChannelMgr = subChannelMgr;
+        subStats = ServerStats.getInstance().getOpStats(OperationType.SUBSCRIBE);
+    }
 
-	@Override
-	public void handleRequestAtOwner(final PubSubRequest request, final Channel channel) {
-		if (!request.hasPublishRequest()) {
-			UmbrellaHandler.sendErrorResponseToMalformedRequest(channel, request.getTxnId(),
-					"Missing publish request data");
-			return;
-		}
+    @Override
+    public void handleRequestAtOwner(final PubSubRequest request, final Channel channel) {
+        if (!request.hasPublishRequest()) {
+            UmbrellaHandler.sendErrorResponseToMalformedRequest(channel, request.getTxnId(),
+                    "Missing publish request data");
+            return;
+        }
 
-		String cmd = request.getPublishRequest().getMsg().getBody().toStringUtf8();	
-		if (cmd.equals("create")) {
-			createQueue(request, channel);
-		} else if (cmd.equals("delete")) {
-			deleteQueue(request, channel);
-		} else if (cmd.equals("get hubs")) {
-			getAvailableHubs(request, channel);
-		}
-	}
+        String cmd = request.getPublishRequest().getMsg().getBody().toStringUtf8();
+        if (cmd.equals("create")) {
+            createQueue(request, channel);
+        } else if (cmd.equals("delete")) {
+            deleteQueue(request, channel);
+        } else if (cmd.equals("get hubs")) {
+            getAvailableHubs(request, channel);
+        } else if (cmd.equals("query count")) {
+            logger.warn("Got a count query request!");
+            queryMessageCount(request, channel);
+        }
+    }
 
-	private void createQueue(final PubSubRequest request, final Channel channel) {
-		final ByteString topic = request.getTopic();
+    private void createQueue(final PubSubRequest request, final Channel channel) {
+        final ByteString topic = request.getTopic();
 
-		MessageSeqId seqId;
-		try {
-			seqId = persistenceMgr.getCurrentSeqIdForTopic(topic);
-		} catch (ServerNotResponsibleForTopicException e) {
-			channel.write(PubSubResponseUtils.getResponseForException(e, request.getTxnId())).addListener(
-					ChannelFutureListener.CLOSE);
-			logger.error("Error getting current seq id for topic " + topic.toStringUtf8()
-					+ " when processing subscribe request (txnid:" + request.getTxnId() + ") :", e);
-			subStats.incrementFailedOps();
-			ServerStats.getInstance().incrementRequestsRedirect();
-			return;
-		}
+        MessageSeqId seqId;
+        try {
+            seqId = persistenceMgr.getCurrentSeqIdForTopic(topic);
+        } catch (ServerNotResponsibleForTopicException e) {
+            channel.write(PubSubResponseUtils.getResponseForException(e, request.getTxnId())).addListener(
+                    ChannelFutureListener.CLOSE);
+            logger.error("Error getting current seq id for topic " + topic.toStringUtf8()
+                    + " when processing subscribe request (txnid:" + request.getTxnId() + ") :", e);
+            subStats.incrementFailedOps();
+            ServerStats.getInstance().incrementRequestsRedirect();
+            return;
+        }
 
-		final SubscribeRequest subRequest = request.getSubscribeRequest();
-		final ByteString subscriberId = subRequest.getSubscriberId();
+        final SubscribeRequest subRequest = request.getSubscribeRequest();
+        final ByteString subscriberId = subRequest.getSubscriberId();
 
-		MessageSeqId lastSeqIdPublished = MessageSeqId.newBuilder(seqId).setLocalComponent(seqId.getLocalComponent())
-				.build();
+        MessageSeqId lastSeqIdPublished = MessageSeqId.newBuilder(seqId).setLocalComponent(seqId.getLocalComponent())
+                .build();
+        // just write subData.
+        SubscribeRequest mySubRequest = SubscribeRequest.newBuilder(subRequest)
+                .setSubscriberId(SubscriptionStateUtils.QUEUE_SUBID_BS).build();
+        subMgr.serveSubscribeRequest(topic, mySubRequest, lastSeqIdPublished, new Callback<SubscriptionData>() {
 
-		// just write subData.
-		SubscribeRequest mySubRequest = SubscribeRequest.newBuilder(subRequest)
-				.setSubscriberId(SubscriptionStateUtils.QUEUE_SUBID_BS).build();
-		subMgr.serveSubscribeRequest(topic, mySubRequest, lastSeqIdPublished, new Callback<SubscriptionData>() {
+            @Override
+            public void operationFailed(Object ctx, PubSubException exception) {
+                channel.write(PubSubResponseUtils.getResponseForException(exception, request.getTxnId())).addListener(
+                        ChannelFutureListener.CLOSE);
+                logger.error(
+                        "Error serving subscribe request (" + request.getTxnId() + ") for (topic: "
+                                + topic.toStringUtf8() + " , subscriber: " + subscriberId.toStringUtf8() + ")",
+                                exception);
+            }
 
-			@Override
-			public void operationFailed(Object ctx, PubSubException exception) {
-				channel.write(PubSubResponseUtils.getResponseForException(exception, request.getTxnId())).addListener(
-						ChannelFutureListener.CLOSE);
-				logger.error(
-						"Error serving subscribe request (" + request.getTxnId() + ") for (topic: "
-								+ topic.toStringUtf8() + " , subscriber: " + subscriberId.toStringUtf8() + ")",
-						exception);
-			}
+            @Override
+            public void operationFinished(Object ctx, SubscriptionData subData) {
+                synchronized (channel) {
+                    if (!channel.isConnected()) {
+                        // channel got disconnected while we were processing the
+                        // subscribe request,
+                        // nothing much we can do in this case
+                        subStats.incrementFailedOps();
+                        return;
+                    }
+                }
+                // First write success and then tell the delivery manager,
+                // otherwise the first message might go out before the response
+                // to the subscribe
+                SubscribeResponse.Builder subRespBuilder = SubscribeResponse.newBuilder().setPreferences(
+                        subData.getPreferences());
+                ResponseBody respBody = ResponseBody.newBuilder().setSubscribeResponse(subRespBuilder).build();
+                channel.write(PubSubResponseUtils.getSuccessResponse(request.getTxnId(), respBody));
+                return;
+            }
+        }, null);
+    }
 
-			@Override
-			public void operationFinished(Object ctx, SubscriptionData subData) {
-				synchronized (channel) {
-					if (!channel.isConnected()) {
-						// channel got disconnected while we were processing the
-						// subscribe request,
-						// nothing much we can do in this case
-						subStats.incrementFailedOps();
-						return;
-					}
-				}
-				// First write success and then tell the delivery manager,
-				// otherwise the first message might go out before the response
-				// to the subscribe
-				SubscribeResponse.Builder subRespBuilder = SubscribeResponse.newBuilder().setPreferences(
-						subData.getPreferences());
-				ResponseBody respBody = ResponseBody.newBuilder().setSubscribeResponse(subRespBuilder).build();
-				channel.write(PubSubResponseUtils.getSuccessResponse(request.getTxnId(), respBody));
-				return;
-			}
-		}, null);
-	}
+    private void deleteQueue(final PubSubRequest request, final Channel channel) {
+        final ByteString topic = request.getTopic();
+        final ByteString subscriberId = SubscriptionStateUtils.QUEUE_SUBID_BS;
 
-	private void deleteQueue(final PubSubRequest request, final Channel channel) {
-		final ByteString topic = request.getTopic();
-		final ByteString subscriberId = SubscriptionStateUtils.QUEUE_SUBID_BS;
+        subMgr.unsubscribe(topic, subscriberId, new Callback<Void>() {
+            @Override
+            public void operationFailed(Object ctx, PubSubException exception) {
+                if (StatusCode.CLIENT_NOT_SUBSCRIBED == exception.getCode()) {
+                    // if ClientNotSubscribedException, still perform deleteTopicPersistenceInfo
+                    if (true == deliveryMgr.deleteTopicPersistenceInfoRecursive(topic)) {
+                        channel.write(PubSubResponseUtils.getSuccessResponse(request.getTxnId()));
+                    } else {
+                        PubSubException e = new PubSubException.ClientNotSubscribedException(
+                                "Can't delete topic persistence info.");
+                        channel.write(PubSubResponseUtils.getResponseForException(e, request.getTxnId()));
+                    }
+                } else {
+                    channel.write(PubSubResponseUtils.getResponseForException(exception, request.getTxnId()));
+                }
 
-		subMgr.unsubscribe(topic, subscriberId, new Callback<Void>() {
-			@Override
-			public void operationFailed(Object ctx, PubSubException exception) {
-				if (StatusCode.CLIENT_NOT_SUBSCRIBED == exception.getCode()) {
-					// if ClientNotSubscribedException, still perform deleteTopicPersistenceInfo
-					if (true == deliveryMgr.deleteTopicPersistenceInfoRecursive(topic)) {
-						channel.write(PubSubResponseUtils.getSuccessResponse(request.getTxnId()));
-					} else {
-						PubSubException e = new PubSubException.ClientNotSubscribedException(
-								"Can't delete topic persistence info.");
-						channel.write(PubSubResponseUtils.getResponseForException(e, request.getTxnId()));
-					}
-				} else {
-					channel.write(PubSubResponseUtils.getResponseForException(exception, request.getTxnId()));
-				}
+            }
 
-			}
+            @Override
+            public void operationFinished(Object ctx, Void resultOfOperation) {
 
-			@Override
-			public void operationFinished(Object ctx, Void resultOfOperation) {
+                // we should not close the channel in delivery manager
+                // since client waits the response for closeSubscription request
+                // client side would close the channel
+                deliveryMgr.stopServingSubscriber(topic, subscriberId, null, new Callback<Void>() {
+                    @Override
+                    public void operationFailed(Object ctx, PubSubException exception) {
+                        channel.write(PubSubResponseUtils.getResponseForException(exception, request.getTxnId()));
+                    }
 
-				// we should not close the channel in delivery manager
-				// since client waits the response for closeSubscription request
-				// client side would close the channel
-				deliveryMgr.stopServingSubscriber(topic, subscriberId, null, new Callback<Void>() {
-					@Override
-					public void operationFailed(Object ctx, PubSubException exception) {
-						channel.write(PubSubResponseUtils.getResponseForException(exception, request.getTxnId()));
-					}
+                    @Override
+                    public void operationFinished(Object ctx, Void resultOfOperation) {
+                        // remove the topic subscription from
+                        // subscription channels
+                        subChannelMgr.remove(new TopicSubscriber(topic, subscriberId), channel);
 
-					@Override
-					public void operationFinished(Object ctx, Void resultOfOperation) {
-						// remove the topic subscription from
-						// subscription channels
-						subChannelMgr.remove(new TopicSubscriber(topic, subscriberId), channel);
+                        if (true == deliveryMgr.deleteTopicPersistenceInfoRecursive(topic)) {
+                            channel.write(PubSubResponseUtils.getSuccessResponse(request.getTxnId()));
+                        } else {
+                            PubSubException e = new PubSubException.ClientNotSubscribedException(
+                                    "Can't delete topic persistence info.");
+                            channel.write(PubSubResponseUtils.getResponseForException(e, request.getTxnId()));
+                        }
 
-						if (true == deliveryMgr.deleteTopicPersistenceInfoRecursive(topic)) {
-							channel.write(PubSubResponseUtils.getSuccessResponse(request.getTxnId()));
-						} else {
-							PubSubException e = new PubSubException.ClientNotSubscribedException(
-									"Can't delete topic persistence info.");
-							channel.write(PubSubResponseUtils.getResponseForException(e, request.getTxnId()));
-						}
+                    }
+                }, ctx);
+            }
+        }, null);
+    }
 
-					}
-				}, ctx);
-			}
-		}, null);
-	}
-	
-	// just a interface, not process in client, for efficiency consideration
-	private void getAvailableHubs(final PubSubRequest request, final Channel channel) {		
-		// Get the list of existing hosts		
-		((ZkTopicManager)topicMgr).getAvailableHubs(new Callback<String>(){
+    // just a interface, not process in client, for efficiency consideration
+    private void getAvailableHubs(final PubSubRequest request, final Channel channel) {
+        // Get the list of existing hosts
+        ((ZkTopicManager)topicMgr).getAvailableHubs(new Callback<String>(){
 
-			@Override
-			public void operationFinished(Object ctx, String resultOfOperation) {
-				Message message = Message.newBuilder().setBody(
-						ByteString.copyFromUtf8(resultOfOperation)).build();
-				PubSubResponse response = PubSubResponse.newBuilder()
-						.setProtocolVersion(ProtocolVersion.VERSION_ONE)
-						.setStatusCode(StatusCode.SUCCESS).setTxnId(request.getTxnId()).setMessage(message)
-						.build();
-				
-				channel.write(response);
-				
-			}
+            @Override
+            public void operationFinished(Object ctx, String resultOfOperation) {
+                Message message = Message.newBuilder().setBody(
+                        ByteString.copyFromUtf8(resultOfOperation)).build();
+                PubSubResponse response = PubSubResponse.newBuilder()
+                        .setProtocolVersion(ProtocolVersion.VERSION_ONE)
+                        .setStatusCode(StatusCode.SUCCESS).setTxnId(request.getTxnId()).setMessage(message)
+                        .build();
 
-			@Override
-			public void operationFailed(Object ctx, PubSubException exception) {
-				// What to do?			
-			}
-			
-		}, null);
-	}
+                channel.write(response);
+
+            }
+
+            @Override
+            public void operationFailed(Object ctx, PubSubException exception) {
+                // What to do?
+            }
+
+        }, null);
+    }
+
+    private void queryMessageCount(final PubSubRequest request, final Channel channel) {
+        final ByteString topic = request.getTopic();
+        ((AbstractSubscriptionManager) subMgr).queryMessagesForTopic(topic, new Callback<Long>() {
+
+            @Override
+            public void operationFinished(Object ctx, Long resultOfOperation) {
+                logger.info("count query request fulfilled!");
+                Message message = Message.newBuilder().setBody(ByteString.copyFromUtf8(resultOfOperation.toString()))
+                        .build();
+                PubSubResponse response = PubSubResponse.newBuilder().setProtocolVersion(ProtocolVersion.VERSION_ONE)
+                        .setStatusCode(StatusCode.SUCCESS).setTxnId(request.getTxnId()).setMessage(message).build();
+                channel.write(response);
+            }
+
+            @Override
+            public void operationFailed(Object ctx, PubSubException exception) {
+                channel.write(PubSubResponseUtils.getResponseForException(exception, request.getTxnId()));
+            }
+        }, null);
+    }
 
 }

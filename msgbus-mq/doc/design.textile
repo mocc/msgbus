@@ -807,7 +807,8 @@ p. 我们这里先关注一下AbstractSubscriptionManager在acquiredTopic中做�
 
 具体使用的是由子类实现的虚方法readSubscriptions，这是一个异步方法。在回调函数中会将读取到的所有订阅信息（Map<ByteString, InMemorySubscriptionState> resultOfOperation）放入top2sub2seq。
 
+h1. Some code snippets that may be error-prone or improperly designed.
 
-h1. Files that were modified or added.
+h2. 客户端代码
 
-* 
+MessageQueueClient.startDelivery方法抛出过多的exception，这其中应该分类处理，一部分可以被封装，一部分是无法解决的问题。

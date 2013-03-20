@@ -65,7 +65,8 @@
       <groupId>org.apache.zookeeper</groupId>
       <artifactId>zookeeper</artifactId>
       <version>3.4.3</version>
-      <scope>compile</scope>
+      <type>test-jar</type>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.zookeeper</groupId>
@@ -169,6 +170,11 @@
           <artifactId>hedwig-client</artifactId>
         </exclusion>
       </exclusions>
+    </dependency>
+    <dependency>
+    	<groupId>com.yonyou</groupId>
+    	<artifactId>msgbus</artifactId>
+    	<version>0.0.1-SNAPSHOT</version>
     </dependency>
   </dependencies>
   <build>
