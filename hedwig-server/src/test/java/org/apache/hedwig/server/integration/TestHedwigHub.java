@@ -53,7 +53,7 @@ import org.apache.hedwig.protocol.PubSubProtocol.StopDeliveryRequest;
 import org.apache.hedwig.protocol.PubSubProtocol.StatusCode;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest.CreateOrAttach;
 import org.apache.hedwig.protoextensions.SubscriptionStateUtils;
-import org.apache.hedwig.server.HedwigHubTestBase;
+import org.apache.hedwig.server.HedwigHubTestBase1;
 import org.apache.hedwig.server.netty.WriteRecordingChannel;
 import org.apache.hedwig.server.proxy.HedwigProxy;
 import org.apache.hedwig.server.proxy.ProxyConfiguration;
@@ -64,7 +64,7 @@ import org.apache.hedwig.util.HedwigSocketAddress;
 import org.apache.bookkeeper.test.PortManager;
 
 @RunWith(Parameterized.class)
-public class TestHedwigHub extends HedwigHubTestBase {
+public class TestHedwigHub extends HedwigHubTestBase1 {
 
     // Client side variables
     protected HedwigClient client;

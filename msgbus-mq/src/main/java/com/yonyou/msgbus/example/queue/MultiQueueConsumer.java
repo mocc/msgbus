@@ -20,7 +20,7 @@ public class MultiQueueConsumer extends Thread {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		System.out.println("receiving finished.");
+		// System.out.println("receiving finished.");
 	}
 
 	/**
@@ -28,13 +28,13 @@ public class MultiQueueConsumer extends Thread {
 	 */
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
-		//PropertyConfigurator.configure("F:/Java Projects2/mq-test/log4j.properties");
+		// PropertyConfigurator.configure("F:/Java Projects2/mq-test/log4j.properties");
 		MultiQueueConsumer m1 = new MultiQueueConsumer();
-		MultiQueueConsumer m2 = new MultiQueueConsumer();		
+		MultiQueueConsumer m2 = new MultiQueueConsumer();
 
 		m1.start();
 		m2.start();
-		
+
 	}
 
 }

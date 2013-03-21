@@ -170,6 +170,12 @@
         </exclusion>
       </exclusions>
     </dependency>
+    <dependency>
+    	<groupId>com.yonyou</groupId>
+    	<artifactId>msgbus</artifactId>
+    	<version>0.0.1-SNAPSHOT</version>
+    	<scope>test</scope>
+    </dependency>
   </dependencies>
   <build>
     <plugins>
