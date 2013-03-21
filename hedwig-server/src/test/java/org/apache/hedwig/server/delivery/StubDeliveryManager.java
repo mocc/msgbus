@@ -20,87 +20,71 @@ package org.apache.hedwig.server.delivery;
 import java.util.LinkedList;
 import java.util.Queue;
 
+import com.google.protobuf.ByteString;
 import org.apache.hedwig.client.data.TopicSubscriber;
 import org.apache.hedwig.filter.ServerMessageFilter;
 import org.apache.hedwig.protocol.PubSubProtocol.MessageSeqId;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionEvent;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionPreferences;
-import org.apache.hedwig.server.subscriptions.AbstractSubscriptionManager;
 import org.apache.hedwig.util.Callback;
-import org.jboss.netty.channel.Channel;
-
-import com.google.protobuf.ByteString;
 
 public class StubDeliveryManager implements DeliveryManager {
 
-	public static class StartServingRequest {
-		public ByteString topic;
-		public ByteString subscriberId;
-		public MessageSeqId seqIdToStartFrom;
-		public DeliveryEndPoint endPoint;
-		public ServerMessageFilter filter;
+    public static class StartServingRequest {
+        public ByteString topic;
+        public ByteString subscriberId;
+        public MessageSeqId seqIdToStartFrom;
+        public DeliveryEndPoint endPoint;
+        public ServerMessageFilter filter;
 
-		public StartServingRequest(ByteString topic, ByteString subscriberId,
-				SubscriptionPreferences preferences, MessageSeqId seqIdToStartFrom,
-				DeliveryEndPoint endPoint, ServerMessageFilter filter) {
-			this.topic = topic;
-			this.subscriberId = subscriberId;
-			this.seqIdToStartFrom = seqIdToStartFrom;
-			this.endPoint = endPoint;
-			this.filter = filter;
-		}
+        public StartServingRequest(ByteString topic, ByteString subscriberId,
+                                   SubscriptionPreferences preferences,
+                                   MessageSeqId seqIdToStartFrom,
+                                   DeliveryEndPoint endPoint,
+                                   ServerMessageFilter filter) {
+            this.topic = topic;
+            this.subscriberId = subscriberId;
+            this.seqIdToStartFrom = seqIdToStartFrom;
+            this.endPoint = endPoint;
+            this.filter = filter;
+        }
 
-	}
+    }
 
-	public Queue<Object> lastRequest = new LinkedList<Object>();
+    public Queue<Object> lastRequest = new LinkedList<Object>();
 
-	@Override
-	public void startServingSubscription(ByteString topic, ByteString subscriberId,
-			SubscriptionPreferences preferences, MessageSeqId seqIdToStartFrom, DeliveryEndPoint endPoint,
-			ServerMessageFilter filter) {
-		lastRequest.add(new StartServingRequest(topic, subscriberId, preferences, seqIdToStartFrom, endPoint,
-				filter));
-	}
+    @Override
+    public void startServingSubscription(ByteString topic, ByteString subscriberId,
+                                         SubscriptionPreferences preferences,
+                                         MessageSeqId seqIdToStartFrom,
+                                         DeliveryEndPoint endPoint,
+                                         ServerMessageFilter filter,
+                                         Callback<Void> cb, Object ctx) {
+        lastRequest.add(new StartServingRequest(topic, subscriberId, preferences,
+                                                seqIdToStartFrom, endPoint, filter));
+        cb.operationFinished(ctx, null);
+    }
 
-	@Override
-	public void stopServingSubscriber(ByteString topic, ByteString subscriberId, SubscriptionEvent event,
-			Callback<Void> cb, Object ctx) {
-		lastRequest.add(new TopicSubscriber(topic, subscriberId));
-		cb.operationFinished(ctx, null);
-	}
+    @Override
+    public void stopServingSubscriber(ByteString topic, ByteString subscriberId,
+                                      SubscriptionEvent event,
+                                      Callback<Void> cb, Object ctx) {
+        lastRequest.add(new TopicSubscriber(topic, subscriberId));
+        cb.operationFinished(ctx, null);
+    }
 
-	@Override
-	public void messageConsumed(ByteString topic, ByteString subscriberId, MessageSeqId seqId) {
-		// do nothing
-	}
+    @Override
+    public void messageConsumed(ByteString topic, ByteString subscriberId,
+                                MessageSeqId seqId) {
+        // do nothing
+    }
 
-	@Override
-	public void start() {
-	}
+    @Override
+    public void start() {
+    }
 
-	@Override
-	public void stop() {
-		// do nothing now
-	}
-
-	@Override
-	public void channelDisconnected(ByteString topic, ByteString subid,
-			Channel channel) {
-		// TODO Auto-generated method stub
-
-	}
-
-	@Override
-	public boolean deleteTopicPersistenceInfoRecursive(ByteString topic) {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	@Override
-	public void addConsumeSeqForQueue(ByteString topic,
-			ByteString subscriberId, MessageSeqId consumeSeqId,
-			AbstractSubscriptionManager sm, Callback<Void> callback, Object ctx) {
-		// TODO Auto-generated method stub
-
-	}
+    @Override
+    public void stop() {
+        // do nothing now
+    }
 }

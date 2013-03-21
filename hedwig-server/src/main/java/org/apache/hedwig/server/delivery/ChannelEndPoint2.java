@@ -20,72 +20,75 @@ package org.apache.hedwig.server.delivery;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
-import org.apache.hedwig.server.common.UnexpectedError;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelFutureListener;
 
-/* msgbus  team added this class*/
+import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
+import org.apache.hedwig.server.common.UnexpectedError;
+
 public class ChannelEndPoint2 implements DeliveryEndPoint, ChannelFutureListener {
 
-	Channel channel;
+    Channel channel;
 
-	public Channel getChannel() {
-		return channel;
-	}
+    public Channel getChannel() {
+        return channel;
+    }
 
-	Map<ChannelFuture, DeliveryCallback> callbacks = new HashMap<ChannelFuture, DeliveryCallback>();
+    Map<ChannelFuture, DeliveryCallback> callbacks = new HashMap<ChannelFuture, DeliveryCallback>();
 
-	public ChannelEndPoint2(Channel channel) {
-		this.channel = channel;
-	}
+    public ChannelEndPoint2(Channel channel) {
+        this.channel = channel;
+    }
 
-	public void close() {
-		channel.close();
-	}
+    public void close() {
+        channel.close();
+    }
 
-	public void send(PubSubResponse response, DeliveryCallback callback) {
-		ChannelFuture future = channel.write(response);
-		callbacks.put(future, callback);
-		future.addListener(this);
-	}
+    public void send(PubSubResponse response, DeliveryCallback callback) {
+        ChannelFuture future = channel.write(response);
+        callbacks.put(future, callback);
+        future.addListener(this);
+    }
 
-	public void operationComplete(ChannelFuture future) throws Exception {
-		DeliveryCallback callback = callbacks.get(future);
-		callbacks.remove(future);
+    public void operationComplete(ChannelFuture future) throws Exception {
+        DeliveryCallback callback = callbacks.get(future);
+        callbacks.remove(future);
 
-		if (callback == null) {
-			throw new UnexpectedError("Could not locate callback for channel future");
-		}
+        if (callback == null) {
+            throw new UnexpectedError("Could not locate callback for channel future");
+        }
 
-		if (future.isSuccess()) {
-			//don't want to change original code everywhere, so use the following code
-			((FIFODeliveryManager.QueueConsumer)callback).resendingFinished();			
-		} else {
-			// treat all channel errors as permanent
-			callback.permanentErrorOnSend(this);
-		}
+        if (future.isSuccess()) {
+            // just change here
+            // don't want to change original code everywhere, so use the
+            // following code
+            ((FIFODeliveryManager.QueueConsumer) callback).resendingFinished();
+        } else {
+            // treat all channel errors as permanent
+            /* msgbus modified, add a parameter*/
+            callback.permanentErrorOnSend(this);
+        }
 
-	}
+    }
 
-	@Override
-	public boolean equals(Object obj) {
-		if (obj instanceof ChannelEndPoint2) {
-			ChannelEndPoint2 channelEndPoint = (ChannelEndPoint2) obj;
-			return channel.equals(channelEndPoint.channel);
-		} else {
-			return false;
-		}
-	}
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof ChannelEndPoint) {
+            ChannelEndPoint channelEndPoint = (ChannelEndPoint) obj;
+            return channel.equals(channelEndPoint.channel);
+        } else {
+            return false;
+        }
+    }
 
-	@Override
-	public int hashCode() {
-		return channel.hashCode();
-	}
+    @Override
+    public int hashCode() {
+        return channel.hashCode();
+    }
 
-	@Override
-	public boolean isConnected() {
-		return channel.isConnected();
-	}
+    @Override
+    public String toString() {
+        return channel.toString();
+    }
 }

@@ -17,58 +17,59 @@
  */
 package org.apache.hedwig.server.handlers;
 
+import org.jboss.netty.channel.Channel;
+
 import org.apache.hedwig.exceptions.PubSubException;
 import org.apache.hedwig.protocol.PubSubProtocol.ConsumeRequest;
 import org.apache.hedwig.protocol.PubSubProtocol.OperationType;
 import org.apache.hedwig.protocol.PubSubProtocol.PubSubRequest;
 import org.apache.hedwig.server.common.ServerConfiguration;
 import org.apache.hedwig.server.netty.ServerStats;
-import org.apache.hedwig.server.netty.ServerStats.OpStats;
 import org.apache.hedwig.server.netty.UmbrellaHandler;
+import org.apache.hedwig.server.netty.ServerStats.OpStats;
 import org.apache.hedwig.server.subscriptions.AbstractSubscriptionManager;
 import org.apache.hedwig.server.subscriptions.SubscriptionManager;
 import org.apache.hedwig.server.topics.TopicManager;
 import org.apache.hedwig.util.Callback;
-import org.jboss.netty.channel.Channel;
 
 public class ConsumeHandler extends BaseHandler {
 
-	SubscriptionManager sm;
-	Callback<Void> noopCallback = new NoopCallback<Void>();
-	final OpStats consumeStats = ServerStats.getInstance().getOpStats(OperationType.CONSUME);
+    SubscriptionManager sm;
+    Callback<Void> noopCallback = new NoopCallback<Void>();
+    final OpStats consumeStats = ServerStats.getInstance().getOpStats(OperationType.CONSUME);
 
-	class NoopCallback<T> implements Callback<T> {
-		@Override
-		public void operationFailed(Object ctx, PubSubException exception) {
-			consumeStats.incrementFailedOps();
-		}
+    class NoopCallback<T> implements Callback<T> {
+        @Override
+        public void operationFailed(Object ctx, PubSubException exception) {
+            consumeStats.incrementFailedOps();
+        }
 
-		public void operationFinished(Object ctx, T resultOfOperation) {
-			// we don't collect consume process time
-			consumeStats.updateLatency(0);
-		};
-	}
+        public void operationFinished(Object ctx, T resultOfOperation) {
+            // we don't collect consume process time
+            consumeStats.updateLatency(0);
+        };
+    }
 
-	@Override
-	public void handleRequestAtOwner(PubSubRequest request, Channel channel) {
-		if (!request.hasConsumeRequest()) {
-			UmbrellaHandler.sendErrorResponseToMalformedRequest(channel, request.getTxnId(),
-					"Missing consume request data");
-			consumeStats.incrementFailedOps();
-			return;
-		}
+    @Override
+    public void handleRequestAtOwner(PubSubRequest request, Channel channel) {
+        if (!request.hasConsumeRequest()) {
+            UmbrellaHandler.sendErrorResponseToMalformedRequest(channel, request.getTxnId(),
+                    "Missing consume request data");
+            consumeStats.incrementFailedOps();
+            return;
+        }
 
-		ConsumeRequest consumeRequest = request.getConsumeRequest();
+        ConsumeRequest consumeRequest = request.getConsumeRequest();   
+        
+        /* msgbus modified --> */
+        ((AbstractSubscriptionManager) sm).addConsumeSeqIdForSubscriber(request.getTopic(),
+                consumeRequest.getSubscriberId(), consumeRequest.getMsgId(), noopCallback, channel);
+        /* <-- msgbus modified */
 
-		/* msgbus team */
-		((AbstractSubscriptionManager) sm).addConsumeSeqIdForSubscriber(request.getTopic(),
-				consumeRequest.getSubscriberId(), consumeRequest.getMsgId(), noopCallback, channel);
-		/* msgbus team */
+    }
 
-	}
-
-	public ConsumeHandler(TopicManager tm, SubscriptionManager sm, ServerConfiguration cfg) {
-		super(tm, cfg);
-		this.sm = sm;
-	}
+    public ConsumeHandler(TopicManager tm, SubscriptionManager sm, ServerConfiguration cfg) {
+        super(tm, cfg);
+        this.sm = sm;
+    }
 }

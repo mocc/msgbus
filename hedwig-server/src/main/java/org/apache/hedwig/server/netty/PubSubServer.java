@@ -31,6 +31,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.BKException;
@@ -59,13 +60,13 @@ import org.apache.hedwig.server.delivery.DeliveryManager;
 import org.apache.hedwig.server.delivery.FIFODeliveryManager;
 import org.apache.hedwig.server.handlers.CloseSubscriptionHandler;
 import org.apache.hedwig.server.handlers.ConsumeHandler;
-import org.apache.hedwig.server.handlers.QueueHandler;
 import org.apache.hedwig.server.handlers.Handler;
 import org.apache.hedwig.server.handlers.NettyHandlerBean;
 import org.apache.hedwig.server.handlers.PublishHandler;
-import org.apache.hedwig.server.handlers.StatsHandler;
+import org.apache.hedwig.server.handlers.QueueHandler;
 import org.apache.hedwig.server.handlers.SubscribeHandler;
 import org.apache.hedwig.server.handlers.SubscriptionChannelManager;
+import org.apache.hedwig.server.handlers.SubscriptionChannelManager.SubChannelDisconnectedListener;
 import org.apache.hedwig.server.handlers.UnsubscribeHandler;
 import org.apache.hedwig.server.jmx.HedwigMBeanRegistry;
 import org.apache.hedwig.server.meta.MetadataManagerFactory;
@@ -90,7 +91,7 @@ import org.apache.hedwig.util.Either;
 import org.apache.hedwig.zookeeper.SafeAsyncCallback;
 
 public class PubSubServer {
-	//////
+
     static Logger logger = LoggerFactory.getLogger(PubSubServer.class);
 
     private static final String JMXNAME_PREFIX = "PubSubServer_";
@@ -142,7 +143,7 @@ public class PubSubServer {
                 throw new IOException(e);
             }
             underlyingPM = new BookkeeperPersistenceManager(bk, mm, topicMgr, conf, scheduler);
-            
+
         }
 
         PersistenceManager pm = underlyingPM;
@@ -236,10 +237,9 @@ public class PubSubServer {
         handlers.put(OperationType.CONSUME, new ConsumeHandler(tm, sm, conf));
         handlers.put(OperationType.CLOSESUBSCRIPTION,
                      new CloseSubscriptionHandler(conf, tm, sm, dm, subChannelMgr));
-        /* lizhhb add */
+        /* msgbus add */
         handlers.put(OperationType.QUEUE_TOPIC_OP,
-                new QueueHandler(conf, tm, pm,dm,subChannelMgr,sm));
-        /* lizhhb add */
+                new QueueHandler(conf, tm, pm,dm,subChannelMgr,sm));      
         handlers = Collections.unmodifiableMap(handlers);
         return handlers;
     }
@@ -416,10 +416,9 @@ public class PubSubServer {
                     instantiateMetadataManagerFactory();
                     tm = instantiateTopicManager();
                     pm = instantiatePersistenceManager(tm);
-                    /* msgbus  team */
-                    //mm has beed initialized in instantiateMetadataManagerFactory()                    
-                    dm = new FIFODeliveryManager(pm, zk, conf, scheduler);
-                    /* msgbus  team */
+                    /* msgbus  modified */  
+                    //dm = new FIFODeliveryManager(pm, conf);                                                       
+                    dm = new FIFODeliveryManager(pm, zk, conf);
                     dm.start();
 
                     sm = instantiateSubscriptionManager(tm, pm, dm);
@@ -430,11 +429,8 @@ public class PubSubServer {
                     // Initialize the Netty Handlers (used by the
                     // UmbrellaHandler) once so they can be shared by
                     // both the SSL and non-SSL channels.
-                    //SubscriptionChannelManager subChannelMgr = new SubscriptionChannelManager(dm);
-                    /* msgbus  team */
-                    SubscriptionChannelManager subChannelMgr = new SubscriptionChannelManager(dm);
-                    /* msgbus  team */
-                    
+                    SubscriptionChannelManager subChannelMgr = new SubscriptionChannelManager();
+                    subChannelMgr.addSubChannelDisconnectedListener((SubChannelDisconnectedListener) dm);
                     Map<OperationType, Handler> handlers =
                         initializeNettyHandlers(tm, dm, pm, sm, subChannelMgr);
                     // Initialize Netty for the regular non-SSL channels
@@ -470,6 +466,11 @@ public class PubSubServer {
         this(serverConfiguration, new org.apache.hedwig.client.conf.ClientConfiguration());
     }
 
+    @VisibleForTesting
+    public DeliveryManager getDeliveryManager() {
+        return dm;
+    }
+
     /**
      *
      * @param msg
@@ -496,50 +497,54 @@ public class PubSubServer {
         // The client configuration for the hedwig client in the region manager.
         org.apache.hedwig.client.conf.ClientConfiguration regionMgrClientConfiguration
                 = new org.apache.hedwig.client.conf.ClientConfiguration();
-        /* if (args.length > 0) {
-        String confFile = args[0];
-        try {
-            serverConfiguration.loadConf(new File(confFile).toURI().toURL());
-        } catch (MalformedURLException e) {
-            String msg = "Could not open server configuration file: " + confFile;
-            errorMsgAndExit(msg, e, RC_INVALID_CONF_FILE);
-        } catch (ConfigurationException e) {
-            String msg = "Malformed server configuration file: " + confFile;
-            errorMsgAndExit(msg, e, RC_MISCONFIGURED);
+        /*if (args.length > 0) {
+            String confFile = args[0];
+            try {
+                serverConfiguration.loadConf(new File(confFile).toURI().toURL());
+            } catch (MalformedURLException e) {
+                String msg = "Could not open server configuration file: " + confFile;
+                errorMsgAndExit(msg, e, RC_INVALID_CONF_FILE);
+            } catch (ConfigurationException e) {
+                String msg = "Malformed server configuration file: " + confFile;
+                errorMsgAndExit(msg, e, RC_MISCONFIGURED);
+            }
+            logger.info("Using configuration file " + confFile);
         }
-        logger.info("Using configuration file " + confFile);
-    }
-    if (args.length > 1) {
-        // args[1] is the client configuration file.
-        String confFile = args[1];
-        try {
-            regionMgrClientConfiguration.loadConf(new File(confFile).toURI().toURL());
-        } catch (MalformedURLException e) {
-            String msg = "Could not open client configuration file: " + confFile;
-            errorMsgAndExit(msg, e, RC_INVALID_CONF_FILE);
-        } catch (ConfigurationException e) {
-            String msg = "Malformed client configuration file: " + confFile;
-            errorMsgAndExit(msg, e, RC_MISCONFIGURED);
+        if (args.length > 1) {
+            // args[1] is the client configuration file.
+            String confFile = args[1];
+            try {
+                regionMgrClientConfiguration.loadConf(new File(confFile).toURI().toURL());
+            } catch (MalformedURLException e) {
+                String msg = "Could not open client configuration file: " + confFile;
+                errorMsgAndExit(msg, e, RC_INVALID_CONF_FILE);
+            } catch (ConfigurationException e) {
+                String msg = "Malformed client configuration file: " + confFile;
+                errorMsgAndExit(msg, e, RC_MISCONFIGURED);
+            }
         }
-    }*/
-    try {
-    	/*lizhhb*/   
-    	//target/classes/        	
-    	URL serverConf = PubSubServer.class.getResource("/hw_server.conf");
-    	ServerConfiguration conf = new ServerConfiguration();    		
-		if (serverConf != null) {
-			conf.loadConf(serverConf);
-			
-		} else {
-			System.out.println("No configuration file!");
-			return;
-		}
-    	serverConfiguration.loadConf(serverConf);
-    	/*lizhhb*/
-        new PubSubServer(serverConfiguration, regionMgrClientConfiguration).start();
-    } catch (Throwable t) {
-        errorMsgAndExit("Error during startup", t, RC_OTHER);
-    }
-
+        try {
+            new PubSubServer(serverConfiguration, regionMgrClientConfiguration).start();
+        } catch (Throwable t) {
+            errorMsgAndExit("Error during startup", t, RC_OTHER);
+        }*/
+        
+        /* msgbus--> For the convenience of debugging in windows. */
+        try {                       
+            URL serverConf = PubSubServer.class.getResource("/hw_server.conf");
+            ServerConfiguration conf = new ServerConfiguration();           
+            if (serverConf != null) {
+                conf.loadConf(serverConf);
+                
+            } else {
+                System.out.println("No configuration file!");
+                return;
+            }
+            serverConfiguration.loadConf(serverConf);            
+            new PubSubServer(serverConfiguration, regionMgrClientConfiguration).start();
+        } catch (Throwable t) {
+            errorMsgAndExit("Error during startup", t, RC_OTHER);
+        }
+        /* For the convenience of debugging in windows. <--msgbus */
     }
 }

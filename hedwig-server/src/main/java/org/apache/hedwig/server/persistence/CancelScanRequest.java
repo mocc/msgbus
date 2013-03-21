@@ -15,14 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hedwig.server.delivery;
+package org.apache.hedwig.server.persistence;
 
-import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
+public interface CancelScanRequest {
 
-public interface DeliveryEndPoint {
-
-    public void send(PubSubResponse response, DeliveryCallback callback);
-
-    public void close();
+    /**
+     * @return the scan request to cancel
+     */
+    public ScanRequest getScanRequest();
 
 }

@@ -15,14 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hedwig.server.delivery;
+package org.apache.hedwig.client.exceptions;
 
-import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
+/**
+ * This is a Hedwig client side exception when the client failed to resubscribe
+ * when topic moved or subscription is closed.
+ */
+public class ResubscribeException extends Exception {
 
-public interface DeliveryEndPoint {
+    public ResubscribeException(String message) {
+        super(message);
+    }
 
-    public void send(PubSubResponse response, DeliveryCallback callback);
-
-    public void close();
+    public ResubscribeException(String message, Throwable t) {
+        super(message, t);
+    }
 
 }

@@ -290,7 +290,7 @@ public class ZkMetadataManagerFactory extends MetadataManagerFactory {
                     }
             }, ctx);
         }
-               
+
         @Override
         public void deleteTopicPersistenceInfo(final ByteString topic, final Version version,
                                                final Callback<Void> callback, Object ctx) {
@@ -310,7 +310,7 @@ public class ZkMetadataManagerFactory extends MetadataManagerFactory {
                 @Override
                 public void safeProcessResult(int rc, String path, Object ctx) {
                     if (rc == Code.OK.intValue()) {
-                        callback.operationFinished(ctx, null);  
+                        callback.operationFinished(ctx, null);
                         return;
                     } else if (rc == Code.NONODE.intValue()) {
                         // no node
@@ -328,7 +328,7 @@ public class ZkMetadataManagerFactory extends MetadataManagerFactory {
                                         + " failed to delete persistence info @version " + version + " : ", path, rc);
                     callback.operationFailed(ctx, new PubSubException.ServiceDownException(e));
                 }
-            }, ctx);            
+            }, ctx);
         }
     }
 

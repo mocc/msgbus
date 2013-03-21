@@ -42,20 +42,21 @@ import org.apache.hedwig.server.PubSubServerStandAloneTestBase;
 import org.apache.hedwig.server.common.ServerConfiguration;
 import org.apache.hedwig.server.topics.AbstractTopicManager;
 import org.apache.hedwig.server.topics.TopicManager;
+import org.apache.hedwig.server.LoggingExceptionHandler;
 import org.apache.hedwig.util.Callback;
 import org.apache.hedwig.util.HedwigSocketAddress;
 import org.apache.hedwig.zookeeper.SafeAsyncZKCallback;
 
 public class TestPubSubServer extends PubSubServerStandAloneTestBase {
 
-    @Test
+    @Test(timeout=60000)
     public void testSecondServer() throws Exception {
         PubSubServer server1 = new PubSubServer(new StandAloneServerConfiguration() {
-            @Override
-            public int getServerPort() {
-                return super.getServerPort() + 1;
-            }
-        });
+                @Override
+                public int getServerPort() {
+                    return super.getServerPort() + 1;
+                }
+            }, new ClientConfiguration(), new LoggingExceptionHandler());
         server1.start();
         server1.shutdown();
     }
@@ -121,7 +122,7 @@ public class TestPubSubServer extends PubSubServerStandAloneTestBase {
         }, null);
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testUncaughtExceptionInNettyThread() throws Exception {
 
         SynchronousQueue<Throwable> queue = new SynchronousQueue<Throwable>();
@@ -151,7 +152,7 @@ public class TestPubSubServer extends PubSubServerStandAloneTestBase {
         server.shutdown();
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testUncaughtExceptionInZKThread() throws Exception {
 
         SynchronousQueue<Throwable> queue = new SynchronousQueue<Throwable>();
@@ -203,7 +204,7 @@ public class TestPubSubServer extends PubSubServerStandAloneTestBase {
         server.shutdown();
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testInvalidServerConfiguration() throws Exception {
         boolean success = false;
         ServerConfiguration conf = new ServerConfiguration() {
@@ -231,7 +232,7 @@ public class TestPubSubServer extends PubSubServerStandAloneTestBase {
         assertTrue(success);
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testValidServerConfiguration() throws Exception {
         boolean success = true;
         ServerConfiguration conf = new ServerConfiguration() {

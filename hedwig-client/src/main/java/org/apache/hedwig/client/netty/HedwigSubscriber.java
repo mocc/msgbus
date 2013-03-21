@@ -199,18 +199,18 @@ public class HedwigSubscriber implements Subscriber {
             throw new ServiceDownException(e);
         }
     }
-    
+
     public void asyncSubscribe(ByteString topic, ByteString subscriberId, CreateOrAttach mode, Callback<Void> callback,
                                Object context) {
         SubscriptionOptions options = SubscriptionOptions.newBuilder().setCreateOrAttach(mode).build();
         asyncSubscribe(topic, subscriberId, options, callback, context, false);
     }
-    
+
     public void asyncSubscribe(ByteString topic, ByteString subscriberId, SubscriptionOptions options,
                                Callback<Void> callback, Object context) {
         asyncSubscribe(topic, subscriberId, options, callback, context, false);
     }
-    
+
     protected void asyncSubscribe(ByteString topic, ByteString subscriberId,
                                   SubscriptionOptions options,
                                   Callback<Void> callback, Object context, boolean isHub) {
@@ -225,7 +225,7 @@ public class HedwigSubscriber implements Subscriber {
                       new VoidCallbackAdapter<ResponseBody>(callback), context,
                       OperationType.SUBSCRIBE, options);
     }
-    
+
     public void unsubscribe(ByteString topic, ByteString subscriberId) throws CouldNotConnectException,
         ClientNotSubscribedException, ServiceDownException, InvalidSubscriberIdException {
         unsubscribe(topic, subscriberId, false);
@@ -298,7 +298,6 @@ public class HedwigSubscriber implements Subscriber {
 
     // This is a helper method to determine if a subscriberId is valid as either
     // a hub or local subscriber
-    /*lizhhb modified for queue*/
     private boolean isValidSubscriberId(ByteString subscriberId, boolean isHub) {
         if ((isHub && !SubscriptionStateUtils.isHubSubscriber(subscriberId))
                 || (!isHub && SubscriptionStateUtils.isHubSubscriber(subscriberId)))
@@ -397,7 +396,7 @@ public class HedwigSubscriber implements Subscriber {
             }
         }
     }
-    
+
     public void asyncCloseSubscription(final ByteString topic, final ByteString subscriberId,
                                        final Callback<Void> callback, final Object context) {
         doAsyncCloseSubscription(topic, subscriberId,
@@ -418,6 +417,5 @@ public class HedwigSubscriber implements Subscriber {
         }
         logger.debug("Closing subscription asynchronously for {}.", topicSubscriber);
         channelManager.asyncCloseSubscription(topicSubscriber, callback, context);
-    }  
-    
+    }
 }

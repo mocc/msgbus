@@ -17,59 +17,87 @@
  */
 package org.apache.hedwig.server.delivery;
 
-import org.apache.bookkeeper.versioning.Version;
-import org.apache.hedwig.filter.ServerMessageFilter;
+import com.google.protobuf.ByteString;
 import org.apache.hedwig.protocol.PubSubProtocol.MessageSeqId;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionEvent;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionPreferences;
+import org.apache.hedwig.filter.ServerMessageFilter;
 import org.apache.hedwig.server.subscriptions.AbstractSubscriptionManager;
 import org.apache.hedwig.util.Callback;
-import org.jboss.netty.channel.Channel;
-
-import com.google.protobuf.ByteString;
 
 public interface DeliveryManager {
-	public void start();
+    public void start();
 
-	public void startServingSubscription(ByteString topic, ByteString subscriberId,
-			SubscriptionPreferences preferences, MessageSeqId seqIdToStartFrom, DeliveryEndPoint endPoint,
-			ServerMessageFilter filter);
+    /**
+     * Start serving a given subscription.
+     *
+     * @param topic
+     *          Topic Name
+     * @param subscriberId
+     *          Subscriber Id
+     * @param preferences
+     *          Subscription Preferences
+     * @param seqIdToStartFrom
+     *          Message sequence id starting delivery from.
+     * @param endPoint
+     *          End point to deliver messages to.
+     * @param filter
+     *          Message filter used to filter messages before delivery.
+     * @param callback
+     *          Callback instance.
+     * @param ctx
+     *          Callback context.
+     */
+    public void startServingSubscription(ByteString topic, ByteString subscriberId,
+                                         SubscriptionPreferences preferences,
+                                         MessageSeqId seqIdToStartFrom,
+                                         DeliveryEndPoint endPoint,
+                                         ServerMessageFilter filter,
+                                         Callback<Void> callback, Object ctx);
 
-	/**
-	 * Stop serving a given subscription.
-	 * 
-	 * @param topic
-	 *            Topic Name
-	 * @param subscriberId
-	 *            Subscriber Id
-	 */
-	public void stopServingSubscriber(ByteString topic, ByteString subscriberId, SubscriptionEvent event,
-			Callback<Void> callback, Object ctx);
+    /**
+     * Stop serving a given subscription.
+     *
+     * @param topic
+     *          Topic Name
+     * @param subscriberId
+     *          Subscriber Id
+     * @param event
+     *          Subscription event indicating the reason to stop the subscriber.
+     * @param callback
+     *          Callback instance.
+     * @param ctx
+     *          Callback context.
+     */
+    public void stopServingSubscriber(ByteString topic, ByteString subscriberId,
+                                      SubscriptionEvent event,
+                                      Callback<Void> callback, Object ctx);
 
-	/**
-	 * Tell the delivery manager where that a subscriber has consumed
-	 * 
-	 * @param topic
-	 *            Topic Name
-	 * @param subscriberId
-	 *            Subscriber Id
-	 * @param consumedSeqId
-	 *            Max consumed seq id.
-	 */
-	public void messageConsumed(ByteString topic, ByteString subscriberId, MessageSeqId consumedSeqId);
+    /**
+     * Tell the delivery manager where that a subscriber has consumed
+     *
+     * @param topic
+     *          Topic Name
+     * @param subscriberId
+     *          Subscriber Id
+     * @param consumedSeqId
+     *          Max consumed seq id.
+     */
+    public void messageConsumed(ByteString topic, ByteString subscriberId,
+                                MessageSeqId consumedSeqId);
 
-	/**
-	 * Stop delivery manager
-	 */
-	public void stop();
+    /**
+     * Stop delivery manager
+     */
+    public void stop();
+    
+    /* msgbus add --> */
+    void addConsumeSeqForQueue(ByteString topic, ByteString subscriberId, MessageSeqId consumeSeqId, AbstractSubscriptionManager sm,
+            Callback<Void> callback, Object ctx);
+    
+    //ctx is Channel an object
+    //void channelDisconnected(ByteString topic, ByteString subid, Channel channel);  
 
-	/* lizhhb */
-	void addConsumeSeqForQueue(ByteString topic, ByteString subscriberId, MessageSeqId consumeSeqId, AbstractSubscriptionManager sm,
-			Callback<Void> callback, Object ctx);
-	
-	//ctx is Channel an object
-	void channelDisconnected(ByteString topic, ByteString subid, Channel channel);	
-
-	boolean deleteTopicPersistenceInfoRecursive(ByteString topic);
-	/* lizhhb */
+    boolean deleteTopicPersistenceInfoRecursive(ByteString topic);
+    /* <--msgbus add */
 }

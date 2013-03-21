@@ -53,7 +53,7 @@ public class ClientConfiguration extends AbstractConfiguration {
     // encapsulates both the regular and SSL port connection to the server host.
     protected HedwigSocketAddress getDefaultServerHedwigSocketAddress() {
         if (myDefaultServerAddress == null)
-            myDefaultServerAddress = new HedwigSocketAddress(conf.getString(DEFAULT_SERVER_HOST, "hedwig.com:4080:9876"));
+            myDefaultServerAddress = new HedwigSocketAddress(conf.getString(DEFAULT_SERVER_HOST, "localhost:4080:9876"));
         return myDefaultServerAddress;
     }
 
@@ -85,9 +85,9 @@ public class ClientConfiguration extends AbstractConfiguration {
     // consume message to the server via the client library using its own
     // logic and policy.
     public boolean isAutoSendConsumeMessageEnabled() {
-        //return conf.getBoolean(AUTO_SEND_CONSUME_MESSAGE_ENABLED, false);
-    	// msgbus team: Always return false as subscriber cluster is supported
-    	return false;
+        //return conf.getBoolean(AUTO_SEND_CONSUME_MESSAGE_ENABLED, true);
+        /* msgbus--> Always return false, to support cluster of subscribers. <--magbus */
+        return false;
     }
 
     // This parameter is to set how many consumed messages we'll buffer up
@@ -95,9 +95,8 @@ public class ClientConfiguration extends AbstractConfiguration {
     // of the messages up to that point have been successfully consumed by
     // the client.
     public int getConsumedMessagesBufferSize() {
-        //return conf.getInt(CONSUMED_MESSAGES_BUFFER_SIZE, 10);
-    	// msgbus team: Always return 1 as subscriber cluster is supported
-    	return 1;
+        /* msgbus--> Always return false, to support cluster of subscribers. <--magbus */
+        return conf.getInt(CONSUMED_MESSAGES_BUFFER_SIZE, 5);
     }
 
     // This parameter is used to determine how long we wait before retrying the
@@ -121,7 +120,7 @@ public class ClientConfiguration extends AbstractConfiguration {
     // the client app can be consuming at a time for topic subscription before
     // we throttle things and stop reading from the Netty Channel.
     public int getMaximumOutstandingMessages() {
-        return conf.getInt(MAX_OUTSTANDING_MESSAGES, 100);
+        return conf.getInt(MAX_OUTSTANDING_MESSAGES, 10);
     }
 
     // This parameter is used to determine how long we wait (in milliseconds)

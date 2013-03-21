@@ -80,11 +80,11 @@ public class NetUtils {
 
         switch (pubSubData.operationType) {
         case PUBLISH:
-        case QUEUE_TOPIC_OP:  /*lizhhb add*/
-            // Set the PublishRequest into the outer PubSubRequest
+        case QUEUE_TOPIC_OP:  /*msgbus add*/
+            // Set the PublishRequest into the outer PubSubRequest            
             pubsubRequestBuilder.setPublishRequest(buildPublishRequest(pubSubData));
             break;
-        case SUBSCRIBE:       
+        case SUBSCRIBE:
             // Set the SubscribeRequest into the outer PubSubRequest
             pubsubRequestBuilder.setSubscribeRequest(buildSubscribeRequest(pubSubData));
             break;

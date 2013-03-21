@@ -21,24 +21,24 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.SynchronousQueue;
 
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.Before;
+
+import com.google.protobuf.ByteString;
 import org.apache.hedwig.exceptions.PubSubException;
 import org.apache.hedwig.protocol.PubSubProtocol.MessageSeqId;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest.CreateOrAttach;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionData;
 import org.apache.hedwig.server.common.ServerConfiguration;
-import org.apache.hedwig.server.meta.MetadataManagerFactory;
 import org.apache.hedwig.server.persistence.LocalDBPersistenceManager;
 import org.apache.hedwig.server.topics.TrivialOwnAllTopicManager;
-import org.apache.hedwig.util.Callback;
+import org.apache.hedwig.server.meta.MetadataManagerFactory;
 import org.apache.hedwig.util.ConcurrencyUtils;
 import org.apache.hedwig.util.Either;
+import org.apache.hedwig.util.Callback;
 import org.apache.hedwig.zookeeper.ZooKeeperTestBase;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.google.protobuf.ByteString;
 
 public class TestMMSubscriptionManager extends ZooKeeperTestBase {
     MetadataManagerFactory mm;
@@ -58,12 +58,11 @@ public class TestMMSubscriptionManager extends ZooKeeperTestBase {
         final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         mm = MetadataManagerFactory.newMetadataManagerFactory(cfg, zk);
         sm = new MMSubscriptionManager(cfg, mm, new TrivialOwnAllTopicManager(cfg, scheduler),
-                LocalDBPersistenceManager.instance(), null, scheduler);
+                                       LocalDBPersistenceManager.instance(), null, scheduler);
         subDataCallback = new Callback<SubscriptionData>() {
             @Override
             public void operationFailed(Object ctx, final PubSubException exception) {
                 scheduler.execute(new Runnable() {
-                    @Override
                     public void run() {
                         ConcurrencyUtils.put(subDataCallbackQueue, Either.of((SubscriptionData) null, exception));
                     }
@@ -73,7 +72,6 @@ public class TestMMSubscriptionManager extends ZooKeeperTestBase {
             @Override
             public void operationFinished(Object ctx, final SubscriptionData resultOfOperation) {
                 scheduler.execute(new Runnable() {
-                    @Override
                     public void run() {
                         ConcurrencyUtils.put(subDataCallbackQueue, Either.of(resultOfOperation, (PubSubException) null));
                     }
@@ -85,7 +83,6 @@ public class TestMMSubscriptionManager extends ZooKeeperTestBase {
             @Override
             public void operationFailed(Object ctx, final PubSubException exception) {
                 scheduler.execute(new Runnable() {
-                    @Override
                     public void run() {
                         ConcurrencyUtils.put(BooleanCallbackQueue, Either.of((Boolean) null, exception));
                     }
@@ -95,7 +92,6 @@ public class TestMMSubscriptionManager extends ZooKeeperTestBase {
             @Override
             public void operationFinished(Object ctx, Void resultOfOperation) {
                 scheduler.execute(new Runnable() {
-                    @Override
                     public void run() {
                         ConcurrencyUtils.put(BooleanCallbackQueue, Either.of(true, (PubSubException) null));
                     }
@@ -105,7 +101,7 @@ public class TestMMSubscriptionManager extends ZooKeeperTestBase {
 
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testBasics() throws Exception {
 
         ByteString topic1 = ByteString.copyFromUtf8("topic1");
@@ -120,12 +116,12 @@ public class TestMMSubscriptionManager extends ZooKeeperTestBase {
         sm.serveSubscribeRequest(topic1, subRequest, msgId, subDataCallback, null);
 
         Assert.assertEquals(ConcurrencyUtils.take(subDataCallbackQueue).right().getClass(),
-                PubSubException.ServerNotResponsibleForTopicException.class);
+                            PubSubException.ServerNotResponsibleForTopicException.class);
 
         sm.unsubscribe(topic1, sub1, voidCallback, null);
 
         Assert.assertEquals(ConcurrencyUtils.take(BooleanCallbackQueue).right().getClass(),
-                PubSubException.ServerNotResponsibleForTopicException.class);
+                            PubSubException.ServerNotResponsibleForTopicException.class);
 
         //
         // Acquire topic.
@@ -139,31 +135,31 @@ public class TestMMSubscriptionManager extends ZooKeeperTestBase {
 
         sm.unsubscribe(topic1, sub1, voidCallback, null);
         Assert.assertEquals(ConcurrencyUtils.take(BooleanCallbackQueue).right().getClass(),
-                PubSubException.ClientNotSubscribedException.class);
+                            PubSubException.ClientNotSubscribedException.class);
 
         //
         // Try to attach to a subscription.
         subRequest = SubscribeRequest.newBuilder().setCreateOrAttach(CreateOrAttach.ATTACH).setSubscriberId(sub1)
-                .build();
+                     .build();
 
         sm.serveSubscribeRequest(topic1, subRequest, msgId, subDataCallback, null);
         Assert.assertEquals(ConcurrencyUtils.take(subDataCallbackQueue).right().getClass(),
-                PubSubException.ClientNotSubscribedException.class);
+                            PubSubException.ClientNotSubscribedException.class);
 
         // now create
         subRequest = SubscribeRequest.newBuilder().setCreateOrAttach(CreateOrAttach.CREATE).setSubscriberId(sub1)
-                .build();
+                     .build();
         sm.serveSubscribeRequest(topic1, subRequest, msgId, subDataCallback, null);
         Assert.assertEquals(msgId.getLocalComponent(), ConcurrencyUtils.take(subDataCallbackQueue).left().getState().getMsgId().getLocalComponent());
         Assert.assertEquals(msgId.getLocalComponent(), sm.top2sub2seq.get(topic1).get(sub1).getLastConsumeSeqId()
-                .getLocalComponent());
+                            .getLocalComponent());
 
         // try to create again
         sm.serveSubscribeRequest(topic1, subRequest, msgId, subDataCallback, null);
         Assert.assertEquals(ConcurrencyUtils.take(subDataCallbackQueue).right().getClass(),
-                PubSubException.ClientAlreadySubscribedException.class);
+                            PubSubException.ClientAlreadySubscribedException.class);
         Assert.assertEquals(msgId.getLocalComponent(), sm.top2sub2seq.get(topic1).get(sub1).getLastConsumeSeqId()
-                .getLocalComponent());
+                            .getLocalComponent());
 
         sm.lostTopic(topic1);
         sm.acquiredTopic(topic1, voidCallback, null);
@@ -171,27 +167,27 @@ public class TestMMSubscriptionManager extends ZooKeeperTestBase {
 
         // try to attach
         subRequest = SubscribeRequest.newBuilder().setCreateOrAttach(CreateOrAttach.ATTACH).setSubscriberId(sub1)
-                .build();
+                     .build();
         MessageSeqId msgId1 = MessageSeqId.newBuilder().setLocalComponent(msgId.getLocalComponent() + 10).build();
         sm.serveSubscribeRequest(topic1, subRequest, msgId1, subDataCallback, null);
         Assert.assertEquals(msgId.getLocalComponent(), subDataCallbackQueue.take().left().getState().getMsgId().getLocalComponent());
         Assert.assertEquals(msgId.getLocalComponent(), sm.top2sub2seq.get(topic1).get(sub1).getLastConsumeSeqId()
-                .getLocalComponent());
+                            .getLocalComponent());
 
         // now manipulate the consume ptrs
         // dont give it enough to have it persist to ZK
         MessageSeqId msgId2 = MessageSeqId.newBuilder().setLocalComponent(
-                msgId.getLocalComponent() + cfg.getConsumeInterval() - 1).build();
+                                  msgId.getLocalComponent() + cfg.getConsumeInterval() - 1).build();
         sm.setConsumeSeqIdForSubscriber(topic1, sub1, msgId2, voidCallback, null);
         Assert.assertTrue(BooleanCallbackQueue.take().left());
         Assert.assertEquals(msgId2.getLocalComponent(), sm.top2sub2seq.get(topic1).get(sub1).getLastConsumeSeqId()
-                .getLocalComponent());
+                            .getLocalComponent());
         Assert.assertEquals(msgId.getLocalComponent(), sm.top2sub2seq.get(topic1).get(sub1).getSubscriptionState().getMsgId()
-                .getLocalComponent());
+                            .getLocalComponent());
 
         // give it more so that it will write to ZK
         MessageSeqId msgId3 = MessageSeqId.newBuilder().setLocalComponent(
-                msgId.getLocalComponent() + cfg.getConsumeInterval() + 1).build();
+                                  msgId.getLocalComponent() + cfg.getConsumeInterval() + 1).build();
         sm.setConsumeSeqIdForSubscriber(topic1, sub1, msgId3, voidCallback, null);
         Assert.assertTrue(BooleanCallbackQueue.take().left());
 
@@ -200,9 +196,9 @@ public class TestMMSubscriptionManager extends ZooKeeperTestBase {
         Assert.assertTrue(BooleanCallbackQueue.take().left());
 
         Assert.assertEquals(msgId3.getLocalComponent(), sm.top2sub2seq.get(topic1).get(sub1).getLastConsumeSeqId()
-                .getLocalComponent());
+                            .getLocalComponent());
         Assert.assertEquals(msgId3.getLocalComponent(), sm.top2sub2seq.get(topic1).get(sub1).getSubscriptionState().getMsgId()
-                .getLocalComponent());
+                            .getLocalComponent());
 
         // finally unsubscribe
         sm.unsubscribe(topic1, sub1, voidCallback, null);

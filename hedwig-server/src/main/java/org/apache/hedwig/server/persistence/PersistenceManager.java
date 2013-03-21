@@ -96,5 +96,4 @@ public interface PersistenceManager {
      * Stop persistence manager.
      */
     public void stop();
-  
 }
