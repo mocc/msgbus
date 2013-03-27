@@ -19,7 +19,6 @@ package org.apache.hedwig.server.topics;
 
 import java.net.UnknownHostException;
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.SynchronousQueue;
 
@@ -134,10 +133,10 @@ public class ZkTopicManager extends AbstractTopicManager implements TopicManager
             return;
         }
 
-        if (topics.contains(topic)) {        	  
+        if (topics.contains(topic)) {
             cb.operationFinished(ctx, addr);
             return;
-        }     
+        }
 
         new ZkGetOwnerOp(topic, shouldClaim, cb, ctx).read();
     }
@@ -337,10 +336,11 @@ public class ZkTopicManager extends AbstractTopicManager implements TopicManager
         }
         super.stop();
     }
-
-    /* msgbus  team */
+    
+    /* msgbus add--> */
     public void getAvailableHubs(Callback<String> cb, Object ctx) {    
-    	((ZkHubServerManager)hubManager).getAvailableHubs(cb, ctx);  
+        ((ZkHubServerManager)hubManager).getAvailableHubs(cb, ctx);  
     }
-    /* msgbus  team */ 
+    /* <--msgbus add */
+
 }

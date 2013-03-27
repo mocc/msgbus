@@ -21,10 +21,8 @@ import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
 
 public interface DeliveryEndPoint {
 
-	public void send(PubSubResponse response, DeliveryCallback callback);
+    public void send(PubSubResponse response, DeliveryCallback callback);
 
-	public void close();
-
-	public boolean isConnected();
+    public void close();
 
 }

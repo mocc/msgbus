@@ -41,7 +41,6 @@ import org.apache.hedwig.protocol.PubSubProtocol;
 import org.apache.hedwig.protocol.PubSubProtocol.OperationType;
 import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
 import org.apache.hedwig.protoextensions.PubSubResponseUtils;
-import org.apache.hedwig.server.delivery.DeliveryManager;
 import org.apache.hedwig.server.handlers.ChannelDisconnectListener;
 import org.apache.hedwig.server.handlers.Handler;
 
@@ -52,7 +51,7 @@ public class UmbrellaHandler extends SimpleChannelHandler {
     private final Map<OperationType, Handler> handlers;
     private final ChannelGroup allChannels;
     private final ChannelDisconnectListener channelDisconnectListener;
-    private final boolean isSSLEnabled;     
+    private final boolean isSSLEnabled; 
 
     public UmbrellaHandler(ChannelGroup allChannels, Map<OperationType, Handler> handlers,
                            ChannelDisconnectListener channelDisconnectListener,
@@ -61,7 +60,7 @@ public class UmbrellaHandler extends SimpleChannelHandler {
         this.isSSLEnabled = isSSLEnabled;
         this.handlers = handlers;
         this.channelDisconnectListener = channelDisconnectListener;
-    }    
+    }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
@@ -118,7 +117,7 @@ public class UmbrellaHandler extends SimpleChannelHandler {
     public void channelDisconnected(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
         Channel channel = ctx.getChannel();
         // subscribe handler needs to know about channel disconnects
-        channelDisconnectListener.channelDisconnected(channel);        
+        channelDisconnectListener.channelDisconnected(channel);
         channel.close();
     }
 

@@ -30,37 +30,42 @@ import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
 
 public class PublishResponseHandler extends AbstractResponseHandler {
 
-	private static Logger logger = LoggerFactory.getLogger(PublishResponseHandler.class);
+    private static Logger logger = LoggerFactory.getLogger(PublishResponseHandler.class);
 
-	public PublishResponseHandler(ClientConfiguration cfg, HChannelManager channelManager) {
-		super(cfg, channelManager);
-	}
+    public PublishResponseHandler(ClientConfiguration cfg,
+                                  HChannelManager channelManager) {
+        super(cfg, channelManager);
+    }
 
-	@Override
-	public void handleResponse(PubSubResponse response, PubSubData pubSubData, Channel channel) throws Exception {
-		switch (response.getStatusCode()) {
-		case SUCCESS:
-			// Response was success so invoke the callback's operationFinished
-			// method.
-			pubSubData.operationFinishedToCallback(pubSubData.context,
-					response.hasResponseBody() ? response.getResponseBody() : null);
-			break;
-		case SERVICE_DOWN:
-			// Response was service down failure so just invoke the callback's
-			// operationFailed method.
-			pubSubData.getCallback().operationFailed(pubSubData.context,
-					new ServiceDownException("Server responded with a SERVICE_DOWN status"));
-			break;
-		case NOT_RESPONSIBLE_FOR_TOPIC:
-			// Redirect response so we'll need to repost the original Publish Request			
-			handleRedirectResponse(response, pubSubData, channel);
-			break;
-		default:
-			// Consider all other status codes as errors, operation failed cases.
-			logger.error("Unexpected error response from server for PubSubResponse: " + response);
-			pubSubData.getCallback().operationFailed(pubSubData.context,
-					new ServiceDownException("Server responded with a status code of: " + response.getStatusCode()));
-			break;
-		}
-	}
+    @Override
+    public void handleResponse(PubSubResponse response, PubSubData pubSubData,
+                               Channel channel) throws Exception {
+        switch (response.getStatusCode()) {
+        case SUCCESS:
+            // Response was success so invoke the callback's operationFinished
+            // method.
+            pubSubData.operationFinishedToCallback(pubSubData.context,
+                response.hasResponseBody() ? response.getResponseBody() : null);
+            break;
+        case SERVICE_DOWN:
+            // Response was service down failure so just invoke the callback's
+            // operationFailed method.
+            pubSubData.getCallback().operationFailed(pubSubData.context, new ServiceDownException(
+                                                    "Server responded with a SERVICE_DOWN status"));
+            break;
+        case NOT_RESPONSIBLE_FOR_TOPIC:
+            // Redirect response so we'll need to repost the original Publish
+            // Request
+            handleRedirectResponse(response, pubSubData, channel);
+            break;
+        default:
+            // Consider all other status codes as errors, operation failed
+            // cases.
+            logger.error("Unexpected error response from server for PubSubResponse: " + response);
+            pubSubData.getCallback().operationFailed(pubSubData.context, new ServiceDownException(
+                                                    "Server responded with a status code of: " +
+                                                        response.getStatusCode()));
+            break;
+        }
+    }
 }

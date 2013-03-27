@@ -28,7 +28,6 @@ import org.apache.hedwig.exceptions.PubSubException.CouldNotConnectException;
 import org.apache.hedwig.exceptions.PubSubException.ServiceDownException;
 import org.apache.hedwig.filter.ClientMessageFilter;
 import org.apache.hedwig.protocol.PubSubProtocol.MessageSeqId;
-import org.apache.hedwig.protocol.PubSubProtocol.ResponseBody;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest.CreateOrAttach;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionOptions;
 import org.apache.hedwig.util.Callback;
@@ -60,7 +59,12 @@ public interface Subscriber {
      *             If the subscriberId is not valid. We may want to set aside
      *             certain formats of subscriberId's for different purposes.
      *             e.g. local vs. hub subscriber
+     * @deprecated As of BookKeeper 4.2.0, replaced by
+     *             {@link Subscriber#subscribe(com.google.protobuf.ByteString,
+     *                                         com.google.protobuf.ByteString,
+     *                                         PubSubProtocol.SubscriptionOptions)}
      */
+    @Deprecated
     public void subscribe(ByteString topic, ByteString subscriberId, CreateOrAttach mode)
             throws CouldNotConnectException, ClientAlreadySubscribedException, ServiceDownException,
         InvalidSubscriberIdException;
@@ -83,7 +87,12 @@ public interface Subscriber {
      * @param context
      *            Calling context that the Callback needs since this is done
      *            asynchronously.
+     * @deprecated As of BookKeeper 4.2.0, replaced by
+     *             {@link Subscriber#asyncSubscribe(com.google.protobuf.ByteString,
+     *                                              com.google.protobuf.ByteString,
+     *                                              PubSubProtocol.SubscriptionOptions,Callback,Object)}
      */
+    @Deprecated
     public void asyncSubscribe(ByteString topic, ByteString subscriberId, CreateOrAttach mode, Callback<Void> callback,
                                Object context);
 
@@ -367,6 +376,5 @@ public interface Subscriber {
      * @param listener
      *          Subscription Listener
      */
-    public void removeSubscriptionListener(SubscriptionListener listener);   
-    
+    public void removeSubscriptionListener(SubscriptionListener listener);
 }

@@ -19,7 +19,6 @@ package org.apache.hedwig.util;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
 
 public class ConcurrencyUtils {
 
@@ -46,14 +45,5 @@ public class ConcurrencyUtils {
             throw new RuntimeException(ex);
         }
     }
-    
-    /*xieyi*/
-    public static <T> T poll(BlockingQueue<T> queue, long timeout, TimeUnit unit) {
-		try {
-			return queue.poll(timeout, unit);
-		} catch (Exception ex) {
-			throw new RuntimeException(ex);
-		}
-	}
-    /*xieyi*/
+
 }

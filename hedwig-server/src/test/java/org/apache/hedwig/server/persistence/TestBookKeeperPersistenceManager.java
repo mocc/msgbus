@@ -77,6 +77,7 @@ public class TestBookKeeperPersistenceManager extends TestCase {
     BookKeeperTestBase bktb;
     private final int numBookies = 3;
     private final long readDelay = 2000L;
+    private final int maxEntriesPerLedger = 10;
 
     ServerConfiguration conf;
     ScheduledExecutorService scheduler;
@@ -254,13 +255,8 @@ public class TestBookKeeperPersistenceManager extends TestCase {
         });
     }
 
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-
-        // delay read response for 2s.
-        bktb = new BookKeeperTestBase(numBookies, readDelay);
+    private void startCluster(long delay) throws Exception {
+        bktb = new BookKeeperTestBase(numBookies, 0L);
         bktb.setUp();
 
         conf = new ServerConfiguration() {
@@ -271,6 +267,10 @@ public class TestBookKeeperPersistenceManager extends TestCase {
             @Override
             public int getConsumeInterval() {
                 return 0;
+            }
+            @Override
+            public long getMaxEntriesPerLedger() {
+                return maxEntriesPerLedger;
             }
         };
         org.apache.bookkeeper.conf.ClientConfiguration bkClientConf =
@@ -289,9 +289,7 @@ public class TestBookKeeperPersistenceManager extends TestCase {
         sm = new MMSubscriptionManager(conf, metadataManagerFactory, tm, manager, null, scheduler);
     }
 
-    @Override
-    @After
-    public void tearDown() throws Exception {
+    private void stopCluster() throws Exception {
         tm.stop();
         manager.stop();
         sm.stop();
@@ -299,6 +297,19 @@ public class TestBookKeeperPersistenceManager extends TestCase {
         metadataManagerFactory.shutdown();
         scheduler.shutdown();
         bktb.tearDown();
+    }
+
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        startCluster(0L);
+    }
+
+    @Override
+    @After
+    public void tearDown() throws Exception {
+        stopCluster();
         super.tearDown();
     }
 
@@ -356,12 +367,12 @@ public class TestBookKeeperPersistenceManager extends TestCase {
         return result;
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testScanMessagesOnClosedLedgerAfterDeleteLedger() throws Exception {
         scanMessagesAfterDeleteLedgerTest(2);
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testScanMessagesOnUnclosedLedgerAfterDeleteLedger() throws Exception {
         scanMessagesAfterDeleteLedgerTest(1);
     }
@@ -397,7 +408,7 @@ public class TestBookKeeperPersistenceManager extends TestCase {
         assertTrue("Should succeed to scan messages after deleted consumed ledger.", b);
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testScanMessagesOnEmptyLedgerAfterDeleteLedger() throws Exception {
         ByteString topic = ByteString.copyFromUtf8("TestScanMessagesOnEmptyLedgerAfterDeleteLedger");
 
@@ -435,12 +446,12 @@ public class TestBookKeeperPersistenceManager extends TestCase {
         assertTrue("Should succeed to scan messages after deleted consumed ledger.", b);
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testFailedToDeleteLedger1() throws Exception {
         failedToDeleteLedgersTest(1);
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testFailedToDeleteLedger2() throws Exception {
         // succeed to delete second ledger
         failedToDeleteLedgersTest(2);
@@ -514,8 +525,11 @@ public class TestBookKeeperPersistenceManager extends TestCase {
         assertNull("Should not fail with exception.", failureException);
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testScanMessagesOnTwoLedgers() throws Exception {
+        stopCluster();
+        startCluster(readDelay);
+
         ByteString topic = ByteString.copyFromUtf8("TestScanMessagesOnTwoLedgers");
 
         List<Message> msgs = new ArrayList<Message>();
@@ -544,7 +558,7 @@ public class TestBookKeeperPersistenceManager extends TestCase {
         }
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testInconsistentSubscriptionStateAndLedgerRanges1() throws Exception {
         // See the comment of inconsistentSubscriptionStateAndLedgerRanges.
         // For this case, Step (2) failed to update subscription state metadata,
@@ -553,7 +567,7 @@ public class TestBookKeeperPersistenceManager extends TestCase {
         inconsistentSubscriptionStateAndLedgerRanges(1);
     }
 
-    @Test
+    @Test(timeout=60000)
     public void testInconsistentSubscriptionStateAndLedgerRanges2() throws Exception {
         // See the comment of inconsistentSubscriptionStateAndLedgerRanges.
         // For this case, step (2) failed to update subscription state metadata,
@@ -633,6 +647,31 @@ public class TestBookKeeperPersistenceManager extends TestCase {
         if (b == null) {
             fail("Scan request doesn't finish");
         }
+    }
+
+    @Test(timeout=60000)
+    // Add this test case for BOOKKEEPER-458
+    public void testReadWhenTopicChangeLedger() throws Exception {
+        final ByteString topic = ByteString.copyFromUtf8("testReadWhenTopicChangeLedger");
+        LinkedList<Message> msgs = new LinkedList<Message>();
+
+        // Write maxEntriesPerLedger entries to make topic change ledger
+        acquireTopic(topic);
+        msgs.addAll(publishMessages(topic, maxEntriesPerLedger));
+
+        // Notice, change ledger operation is asynchronous, so we should wait!!!
+        Thread.sleep(2000);
+
+        // Issue a scan request right start from the new ledger
+        LinkedBlockingQueue<Boolean> statusQueue = new LinkedBlockingQueue<Boolean>();
+        RangeScanRequest scan = new RangeScanRequest(topic, maxEntriesPerLedger + 1, 1, Long.MAX_VALUE,
+                new RangeScanVerifier(msgs, null), statusQueue);
+        manager.scanMessages(scan);
+        Boolean b = statusQueue.poll(10 * readDelay, TimeUnit.MILLISECONDS);
+        if (b == null) {
+            fail("Scan request timeout");
+        }
+        assertFalse("Expect none message is scanned on the new created ledger", b);
     }
 
     class TestCallback implements Callback<PubSubProtocol.MessageSeqId> {

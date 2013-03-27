@@ -19,10 +19,11 @@ package org.apache.hedwig.server.delivery;
 
 public interface DeliveryCallback {
 
-	public void sendingFinished();
+    public void sendingFinished();
 
-	public void transientErrorOnSend();
+    public void transientErrorOnSend();
 
-	public void permanentErrorOnSend(Object ctx);
-
+    /* msgbus modified, add a parameter*/
+    public void permanentErrorOnSend(Object ctx);
+   
 }

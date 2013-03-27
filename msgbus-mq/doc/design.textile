@@ -667,7 +667,7 @@ h2. 让BK回收不会再使用的消息
 
 h2. 订阅者（消费者）的订阅信息
 
-hedwig会为订阅者（消费者）维护两份订阅信息，一部分是在内存中，具体一点就是保存在程序的一个map中，另一部分是持久化到一个data source。
+hedwig会为订阅者（消费者）维护两份订阅信息，一部分是在内存中，具体一点就是保存在程序的一个map（AbstractSubscriptionManager.top2sub2seq）中，另一部分作为元数据被持久化，并可以被查询（在目前的版本4.2.1中，有针对ZooKeeper提供了对应的接口实现，另外提供了方便与其他存储方式对接的扩展点。具体参见org.apache.hedwig.server.meta包中的abstract class MetadataManagerFactory以及class ZkMetadataManagerFactory）。
 
 SubscriptionData类是在持久化的时候会使用到的类，它包含两个实例变量，一个是SubscriptionState类的实例，一个是SubscriptionPreferences的实例。SubscriptionState中实际使用的只有一个字段，MessageSeqId seqId，用来表示当前已经consume的最后一条消息的seqId。SubscriptionPreferences是一些针对这次订阅的配置信息，窗口大小（messageWindowSize）是一个比较重要的内容。当前的hedwig使用zookeeper作为数据的存储点。
 
@@ -675,13 +675,13 @@ InMemorySubscriptionState类包含一个订阅的所有信息，从名字即可�
 
 h3. 创建
 
-订阅信息是在客户端进行订阅的时候创建的。AbstractSubscriptionManager会接受订阅请求，SubscriptionData，也就是持久化的信息会交给子类去完成。在完成新的订阅信息的持久化之后，AbstractSubscriptionManager会为这个订阅创建InMemorySubscriptionState，然后保存到上边提到过的top2sub2seq中。
+订阅信息是在客户端进行订阅的时候创建的。AbstractSubscriptionManager会接受订阅请求，创建对应的SubscriptionData，也就是持久化的信息，然后交给子类去完成。在完成新的订阅信息的持久化之后，AbstractSubscriptionManager会为这个订阅创建InMemorySubscriptionState，然后保存到上边提到过的top2sub2seq中。
 
 h3. 更新
 
 更新动作发生在AbstractSubscriptionManager.setConsumeSeqIdForSubscriber异步方法中，它创建一个ConsumeOp然后返回。既然是名为consume，这个方法是服务端完成consume流程中的一部分。
 
-在ConsumeOp中，会先更新InMemorySubscriptionState，如果发现当前consume的seqId的值减去已经持久化的seqId之后超过了一个值（consume_interval），将执行具体的持久化动作。
+在ConsumeOp中，会先更新InMemorySubscriptionState，如果发现当前consume的seqId的值减去已经持久化的seqId之后超过了一个值（consume_interval），将执行具体的持久化动作（比如说写入到zk中）。
 
 h3. 删除
 
@@ -750,7 +750,7 @@ This is the Timer Task for finding out for each topic, what the minimum consumed
 bc. 
 timer.schedule(new MessagesConsumedTask(), 0, cfg.getMessagesConsumedThreadRunInterval());
 
-它会按指定时间间隔运行，并更新topic2MinConsumedMessagesMap。
+它会按指定时间间隔运行，并更新topic2MinConsumedMessagesMap。它的局限在于，由于是间隔时间运行，并不保证我们在请求的时候能拿到最新的值。不过MessagesConsumedTask给了我们指引了一个比较好的方向。具体实现依赖于topic2MinConsumedMessagesMap，以及top2sub2seq。
 
 h2. Hub与主题的ownership
 
@@ -784,7 +784,7 @@ This method should "return" the owner of the topic if one has been chosen alread
 *claimTopic*方法是已经确定本hub对此topic的所有权并已写入zk，这时将开始hub内的一些操作。AbstractTopicManager.notifyListenersAndAddToOwnedTopics方法是通知所有注册在AbstractTopicManager中的TopicOwnershipChangeListener本hub已经获取此topic的所有权，并将此topic加入topics。然后会使用HubServerManager将本hub的新负载更新到zk中（载体为HubLoad类）。到这一步执行完毕之后，实际上本hub就完成了此topic所有权的获取，然后会开始serve有关这个topic的操作。一开始从BaseHandler.handleRequest中传入的callback（对下一步handleRequestAtOwner方法的调用）会被传入AbstractTopicManager.notifyListenersAndAddToOwnedTopics方法，并在里边完成调用。实际情况是这里notify的listener中还有相当多的工作要做，完成了之后才会真正开始对客户端请求进行处理。
 
 这里的持久化信息包含两个类，一个是HubInfo，一个是HubLoad，他们都不是protobuf的生成类，但是又都包含了相应的生成类（HubInfoData和HubLoadData），他们在存储到zk中的时候使用的是字符串的表现形式，也就是可读的形式，并不是像SubscriptionData那样直接调用生成类的toByteArray()方法，这样拿到的byte并不可读，但是更为紧凑。为什么这么做的原因我还不太了解。
-
+  
 h2. hub失效后，其中的主题怎么办？
 
 紧接上一个小节，当一个hub失效其中主题的所有权会在下一次有订阅者请求订阅或消息发布到别的hub上时发生转移（当然，可能的情况还包含失效的hub恢复之后重新获取所有权，继续服务客户端那）。
@@ -806,3 +806,9 @@ p. 我们这里先关注一下AbstractSubscriptionManager在acquiredTopic中做�
 从整体来看，AbstractSubscriptionManager这个类是在维护订阅信息（We've already see some in previous chapters）。这个AcquireOp会先检测top2sub2seq中是否包含这个topic的信息，如果有则立即调用callback的operationFinished，完成这个流程的调用。但如果不包含，则说明这个topic either是一个新的主题（在这个hedwig cluster中未有存在过），or是一个被别的hub serve过的hub，但是那个hub已经失效或将ownership放弃了。这样，为了在这个hub中serve这个topic，hedwig需要用AbstractSubscriptionManager从数据源那里将所有持久化的订阅信息读取出来保存到内存中。
 
 具体使用的是由子类实现的虚方法readSubscriptions，这是一个异步方法。在回调函数中会将读取到的所有订阅信息（Map<ByteString, InMemorySubscriptionState> resultOfOperation）放入top2sub2seq。
+
+h1. Some code snippets that may be error-prone or improperly designed.
+
+h2. 客户端代码
+
+MessageQueueClient.startDelivery方法抛出过多的exception，这其中应该分类处理，一部分可以被封装，一部分是无法解决的问题。

@@ -82,16 +82,6 @@ public abstract class AbstractResponseHandler {
     protected void handleRedirectResponse(PubSubResponse response, PubSubData pubSubData,
                                           Channel channel)
             throws Exception {
-    	
-    	/* msgbus  team */
-    	/*String str=response.getStatusMsg();
-    	System.out.println(str);
-		if(str.startsWith("hubs: ")) {
-			System.out.println(str);
-			return;
-		}*/
-		/* msgbus  team */
-		
         if (logger.isDebugEnabled()) {
             logger.debug("Handling a redirect from host: {}, response: {}, pubSubData: {}",
                          va(NetUtils.getHostFromChannel(channel), response, pubSubData));

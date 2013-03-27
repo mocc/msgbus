@@ -17,8 +17,6 @@
  */
 package org.apache.hedwig.server.handlers;
 
-import java.util.List;
-
 import org.jboss.netty.channel.Channel;
 
 import org.apache.hedwig.exceptions.PubSubException;
@@ -52,14 +50,14 @@ public abstract class BaseHandler implements Handler {
             }
 
             @Override
-            public void operationFinished(Object ctx, HedwigSocketAddress owner) {            	
-                if (!owner.equals(cfg.getServerAddr())) {                	
+            public void operationFinished(Object ctx, HedwigSocketAddress owner) {
+                if (!owner.equals(cfg.getServerAddr())) {
                     channel.write(PubSubResponseUtils.getResponseForException(
                                       new ServerNotResponsibleForTopicException(owner.toString()), request.getTxnId()));
                     ServerStats.getInstance().incrementRequestsRedirect();
                     return;
-                }                
-                handleRequestAtOwner(request, channel);                
+                }
+                handleRequestAtOwner(request, channel);
             }
         }, null);
     }

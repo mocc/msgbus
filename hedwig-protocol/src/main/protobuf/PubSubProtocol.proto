@@ -100,9 +100,20 @@ message PubSubRequest{
     optional StopDeliveryRequest stopDeliveryRequest = 56;
     optional StartDeliveryRequest startDeliveryRequest = 57;
     optional CloseSubscriptionRequest closeSubscriptionRequest = 58;
+    
+    optional QueueMgmtRequest queueMgmtRequest = 91;
 }
 
+enum QueueOperationType {
+	CREATE = 1;
+	DELETE = 2;
+	QUERYHUBS = 3;
+	QUERY_MSG_CNT = 4; // query message count
+}
 
+message QueueMgmtRequest {
+	required QueueOperationType type = 1;
+}
 
 message PublishRequest{
     required Message msg = 2;
@@ -232,10 +243,16 @@ message SubscribeResponse {
     optional SubscriptionPreferences preferences = 2;
 }
 
+message QueueMgmtResponse {
+	optional string hubList = 4;
+	optional uint64 messageCount = 5;
+}
+
 message ResponseBody {
     optional PublishResponse publishResponse = 1;
     optional SubscribeResponse subscribeResponse = 2;
     optional SubscriptionEventResponse subscriptionEvent = 3;
+    optional QueueMgmtResponse queueMgmtResponse = 4;
 }
 
 
@@ -249,6 +266,7 @@ enum StatusCode{
     CLIENT_NOT_SUBSCRIBED = 404;
     COULD_NOT_CONNECT = 405;
     TOPIC_BUSY = 406;
+    RESUBSCRIBE_EXCEPTION = 407;
     
     //server-side errors (5xx)
     NOT_RESPONSIBLE_FOR_TOPIC = 501;

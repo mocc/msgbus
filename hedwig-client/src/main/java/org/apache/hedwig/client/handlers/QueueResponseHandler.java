@@ -17,54 +17,48 @@
  */
 package org.apache.hedwig.client.handlers;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.jboss.netty.channel.Channel;
-
 import org.apache.hedwig.client.conf.ClientConfiguration;
 import org.apache.hedwig.client.data.PubSubData;
-import org.apache.hedwig.client.data.TopicSubscriber;
 import org.apache.hedwig.client.netty.HChannelManager;
-import org.apache.hedwig.exceptions.PubSubException;
 import org.apache.hedwig.exceptions.PubSubException.ClientNotSubscribedException;
 import org.apache.hedwig.exceptions.PubSubException.ServiceDownException;
 import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
-import org.apache.hedwig.protocol.PubSubProtocol.ResponseBody;
-import org.apache.hedwig.util.Callback;
-import static org.apache.hedwig.util.VarArgs.va;
-/* lizhhb add */
+import org.jboss.netty.channel.Channel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+/* msgbus add this file*/
 public class QueueResponseHandler extends AbstractResponseHandler {
 
     private static Logger logger = LoggerFactory.getLogger(QueueResponseHandler.class);
 
     public QueueResponseHandler(ClientConfiguration cfg,
-                                      HChannelManager channelManager) {
+            HChannelManager channelManager) {
         super(cfg, channelManager);
     }
 
     @Override
     public void handleResponse(final PubSubResponse response, final PubSubData pubSubData,
-                               final Channel channel)
-            throws Exception {
+            final Channel channel)
+                    throws Exception {
         switch (response.getStatusCode()) {
         case SUCCESS:
             // since for unsubscribe request, we close subscription first
-            // for now, we don't need to do anything now.        	       	
-            pubSubData.getCallback().operationFinished(pubSubData.context, null);           
+            // for now, we don't need to do anything now.
+            pubSubData.getCallback().operationFinished(pubSubData.context, response.getResponseBody());
             break;
         case CLIENT_NOT_SUBSCRIBED:
             // For Unsubscribe requests, the server says that the client was
             // never subscribed to the topic.
             pubSubData.getCallback().operationFailed(pubSubData.context, new ClientNotSubscribedException(
-                                                    "Client was never subscribed to topic: " +
-                                                        pubSubData.topic.toStringUtf8() + ", subscriberId: " +
-                                                        pubSubData.subscriberId.toStringUtf8()));
+                    "Client was never subscribed to topic: " +
+                            pubSubData.topic.toStringUtf8() + ", subscriberId: " +
+                            pubSubData.subscriberId.toStringUtf8()));
             break;
         case SERVICE_DOWN:
             // Response was service down failure so just invoke the callback's
             // operationFailed method.
             pubSubData.getCallback().operationFailed(pubSubData.context, new ServiceDownException(
-                                                    "Server responded with a SERVICE_DOWN status"));
+                    "Server responded with a SERVICE_DOWN status"));
             break;
         case NOT_RESPONSIBLE_FOR_TOPIC:
             // Redirect response so we'll need to repost the original
@@ -76,8 +70,8 @@ public class QueueResponseHandler extends AbstractResponseHandler {
             // cases.
             logger.error("Unexpected error response from server for PubSubResponse: " + response);
             pubSubData.getCallback().operationFailed(pubSubData.context, new ServiceDownException(
-                                                    "Server responded with a status code of: " +
-                                                        response.getStatusCode()));
+                    "Server responded with a status code of: " +
+                            response.getStatusCode()));
             break;
         }
     }
