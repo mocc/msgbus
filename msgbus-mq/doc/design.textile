@@ -667,7 +667,7 @@ h2. 让BK回收不会再使用的消息
 
 h2. 订阅者（消费者）的订阅信息
 
-hedwig会为订阅者（消费者）维护两份订阅信息，一部分是在内存中，具体一点就是保存在程序的一个map中，另一部分是持久化到一个data source。
+hedwig会为订阅者（消费者）维护两份订阅信息，一部分是在内存中，具体一点就是保存在程序的一个map（AbstractSubscriptionManager.top2sub2seq）中，另一部分作为元数据被持久化，并可以被查询（在目前的版本4.2.1中，有针对ZooKeeper提供了对应的接口实现，另外提供了方便与其他存储方式对接的扩展点。具体参见org.apache.hedwig.server.meta包中的abstract class MetadataManagerFactory以及class ZkMetadataManagerFactory）。
 
 SubscriptionData类是在持久化的时候会使用到的类，它包含两个实例变量，一个是SubscriptionState类的实例，一个是SubscriptionPreferences的实例。SubscriptionState中实际使用的只有一个字段，MessageSeqId seqId，用来表示当前已经consume的最后一条消息的seqId。SubscriptionPreferences是一些针对这次订阅的配置信息，窗口大小（messageWindowSize）是一个比较重要的内容。当前的hedwig使用zookeeper作为数据的存储点。
 
@@ -675,13 +675,13 @@ InMemorySubscriptionState类包含一个订阅的所有信息，从名字即可�
 
 h3. 创建
 
-订阅信息是在客户端进行订阅的时候创建的。AbstractSubscriptionManager会接受订阅请求，SubscriptionData，也就是持久化的信息会交给子类去完成。在完成新的订阅信息的持久化之后，AbstractSubscriptionManager会为这个订阅创建InMemorySubscriptionState，然后保存到上边提到过的top2sub2seq中。
+订阅信息是在客户端进行订阅的时候创建的。AbstractSubscriptionManager会接受订阅请求，创建对应的SubscriptionData，也就是持久化的信息，然后交给子类去完成。在完成新的订阅信息的持久化之后，AbstractSubscriptionManager会为这个订阅创建InMemorySubscriptionState，然后保存到上边提到过的top2sub2seq中。
 
 h3. 更新
 
 更新动作发生在AbstractSubscriptionManager.setConsumeSeqIdForSubscriber异步方法中，它创建一个ConsumeOp然后返回。既然是名为consume，这个方法是服务端完成consume流程中的一部分。
 
-在ConsumeOp中，会先更新InMemorySubscriptionState，如果发现当前consume的seqId的值减去已经持久化的seqId之后超过了一个值（consume_interval），将执行具体的持久化动作（比如说写入到zk）。
+在ConsumeOp中，会先更新InMemorySubscriptionState，如果发现当前consume的seqId的值减去已经持久化的seqId之后超过了一个值（consume_interval），将执行具体的持久化动作（比如说写入到zk中）。
 
 h3. 删除
 

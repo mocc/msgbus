@@ -20,16 +20,16 @@ package org.apache.hedwig.server.handlers;
 import org.apache.hedwig.client.data.TopicSubscriber;
 import org.apache.hedwig.exceptions.PubSubException;
 import org.apache.hedwig.exceptions.PubSubException.ServerNotResponsibleForTopicException;
-import org.apache.hedwig.protocol.PubSubProtocol.Message;
 import org.apache.hedwig.protocol.PubSubProtocol.MessageSeqId;
 import org.apache.hedwig.protocol.PubSubProtocol.OperationType;
 import org.apache.hedwig.protocol.PubSubProtocol.ProtocolVersion;
 import org.apache.hedwig.protocol.PubSubProtocol.PubSubRequest;
 import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
+import org.apache.hedwig.protocol.PubSubProtocol.QueueMgmtResponse;
+import org.apache.hedwig.protocol.PubSubProtocol.QueueOperationType;
 import org.apache.hedwig.protocol.PubSubProtocol.ResponseBody;
 import org.apache.hedwig.protocol.PubSubProtocol.StatusCode;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest;
-import org.apache.hedwig.protocol.PubSubProtocol.SubscribeResponse;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionData;
 import org.apache.hedwig.protoextensions.PubSubResponseUtils;
 import org.apache.hedwig.protoextensions.SubscriptionStateUtils;
@@ -37,7 +37,6 @@ import org.apache.hedwig.server.common.ServerConfiguration;
 import org.apache.hedwig.server.delivery.DeliveryManager;
 import org.apache.hedwig.server.netty.ServerStats;
 import org.apache.hedwig.server.netty.ServerStats.OpStats;
-import org.apache.hedwig.server.netty.UmbrellaHandler;
 import org.apache.hedwig.server.persistence.PersistenceManager;
 import org.apache.hedwig.server.subscriptions.AbstractSubscriptionManager;
 import org.apache.hedwig.server.subscriptions.SubscriptionManager;
@@ -75,22 +74,21 @@ public class QueueHandler extends BaseHandler {
 
     @Override
     public void handleRequestAtOwner(final PubSubRequest request, final Channel channel) {
-        if (!request.hasPublishRequest()) {
-            UmbrellaHandler.sendErrorResponseToMalformedRequest(channel, request.getTxnId(),
-                    "Missing publish request data");
-            return;
-        }
+        QueueOperationType operationType = request.getQueueMgmtRequest().getType();
 
-        String cmd = request.getPublishRequest().getMsg().getBody().toStringUtf8(); 
-        if (cmd.equals("create")) {
+        switch (operationType) {
+        case CREATE:
             createQueue(request, channel);
-        } else if (cmd.equals("delete")) {
+            break;
+        case DELETE:
             deleteQueue(request, channel);
-        } else if (cmd.equals("get hubs")) {
-            getAvailableHubs(request, channel);
-        } else if (cmd.equals("query count")) {
+            break;
+        case QUERY_MSG_CNT:
             logger.warn("Got a count query request!");
             queryMessageCount(request, channel);
+            break;
+        case QUERYHUBS:
+            getAvailableHubs(request, channel);
         }
     }
 
@@ -128,7 +126,7 @@ public class QueueHandler extends BaseHandler {
                 logger.error(
                         "Error serving subscribe request (" + request.getTxnId() + ") for (topic: "
                                 + topic.toStringUtf8() + " , subscriber: " + subscriberId.toStringUtf8() + ")",
-                        exception);
+                                exception);
             }
 
             @Override
@@ -142,13 +140,7 @@ public class QueueHandler extends BaseHandler {
                         return;
                     }
                 }
-                // First write success and then tell the delivery manager,
-                // otherwise the first message might go out before the response
-                // to the subscribe
-                SubscribeResponse.Builder subRespBuilder = SubscribeResponse.newBuilder().setPreferences(
-                        subData.getPreferences());
-                ResponseBody respBody = ResponseBody.newBuilder().setSubscribeResponse(subRespBuilder).build();
-                channel.write(PubSubResponseUtils.getSuccessResponse(request.getTxnId(), respBody));
+                channel.write(PubSubResponseUtils.getSuccessResponse(request.getTxnId()));
                 return;
             }
         }, null);
@@ -173,7 +165,6 @@ public class QueueHandler extends BaseHandler {
                 } else {
                     channel.write(PubSubResponseUtils.getResponseForException(exception, request.getTxnId()));
                 }
-
             }
 
             @Override
@@ -207,33 +198,30 @@ public class QueueHandler extends BaseHandler {
             }
         }, null);
     }
-    
+
     // just a interface, not process in client, for efficiency consideration
-    private void getAvailableHubs(final PubSubRequest request, final Channel channel) {     
-        // Get the list of existing hosts       
+    private void getAvailableHubs(final PubSubRequest request, final Channel channel) {
+        // Get the list of existing hosts
         ((ZkTopicManager)topicMgr).getAvailableHubs(new Callback<String>(){
 
             @Override
             public void operationFinished(Object ctx, String resultOfOperation) {
-                Message message = Message.newBuilder().setBody(
-                        ByteString.copyFromUtf8(resultOfOperation)).build();
+                QueueMgmtResponse queueResponse = QueueMgmtResponse.newBuilder().setHubList(resultOfOperation).build();
+                ResponseBody body = ResponseBody.newBuilder().setQueueMgmtResponse(queueResponse).build();
                 PubSubResponse response = PubSubResponse.newBuilder()
                         .setProtocolVersion(ProtocolVersion.VERSION_ONE)
-                        .setStatusCode(StatusCode.SUCCESS).setTxnId(request.getTxnId()).setMessage(message)
-                        .build();
-                
+                        .setStatusCode(StatusCode.SUCCESS).setTxnId(request.getTxnId()).setResponseBody(body).build();
                 channel.write(response);
-                
             }
 
             @Override
             public void operationFailed(Object ctx, PubSubException exception) {
-                // What to do?          
+                // What to do?
             }
-            
+
         }, null);
     }
-    
+
     private void queryMessageCount(final PubSubRequest request, final Channel channel) {
         final ByteString topic = request.getTopic();
         ((AbstractSubscriptionManager) subMgr).queryMessagesForTopic(topic, new Callback<Long>() {
@@ -241,10 +229,11 @@ public class QueueHandler extends BaseHandler {
             @Override
             public void operationFinished(Object ctx, Long resultOfOperation) {
                 logger.info("count query request fulfilled!");
-                Message message = Message.newBuilder().setBody(ByteString.copyFromUtf8(resultOfOperation.toString()))
+                QueueMgmtResponse queueResponse = QueueMgmtResponse.newBuilder().setMessageCount(resultOfOperation)
                         .build();
+                ResponseBody body = ResponseBody.newBuilder().setQueueMgmtResponse(queueResponse).build();
                 PubSubResponse response = PubSubResponse.newBuilder().setProtocolVersion(ProtocolVersion.VERSION_ONE)
-                        .setStatusCode(StatusCode.SUCCESS).setTxnId(request.getTxnId()).setMessage(message).build();
+                        .setStatusCode(StatusCode.SUCCESS).setTxnId(request.getTxnId()).setResponseBody(body).build();
                 channel.write(response);
             }
 

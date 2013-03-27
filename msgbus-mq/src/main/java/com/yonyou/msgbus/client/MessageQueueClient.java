@@ -104,7 +104,7 @@ public class MessageQueueClient {
 
             @Override
             public void operationFinished(Object ctx, ResponseBody resultOfOperation) {
-                long result = Long.decode((String) ctx);
+                long result = resultOfOperation.getQueueMgmtResponse().getMessageCount();
                 count.set(result);
                 signal.countDown();
             }
@@ -117,7 +117,7 @@ public class MessageQueueClient {
 
         }, null);
 
-        if (!signal.await(10, TimeUnit.SECONDS)) {
+        if (!signal.await(5, TimeUnit.SECONDS)) {
             logger.info("Can't get the count of message for " + queueName + " in 5 seconds.");
             // TODO provide more info
             return -1;

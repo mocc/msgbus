@@ -81,7 +81,7 @@ public class TestAdditionalFunctionPoint extends HedwigHubTestBase {
     }
 
     @Ignore
-    public void testMessageCountWithoutConsume() {
+    public void messageCountWithoutConsume() {
         // Message msg =
         // Message.newBuilder().setBody(ByteString.copyFromUtf8(createString(256))).build();
         MsgBusClient client = new MsgBusClient(new TestClientConfiguration());
