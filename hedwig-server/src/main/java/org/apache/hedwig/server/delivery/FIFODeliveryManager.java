@@ -691,66 +691,7 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager, SubChanne
                 return;
             }
 
-            /* msgbus modified--> */
-            // Pick one member and send message to it
-            // Not lock. If the consumer is just in the air, it's ok to put message in retryMessageQueue
-            consumerCluster.qcDelLock.lock();
-            QueueConsumer qc = consumerCluster.waitingConsumers.peek();
-
-            // Suppose that happens rarely, so don't check delivering in advance
-            // Put message in retryMessageQueue.
-            if (qc == null ) {
-                logger.info("Can't find waiting queueConsumer. Put the message in retryMessageQueue.");
-                consumerCluster.retryMessageQueue.add(new UnConsumedSeq(message.getMsgId().getLocalComponent(), 0));
-
-                if(ctx==null) {
-                    /* use the old method, its ok */
-                    sendingFinished();
-                }
-                // note: release the lock if return here
-                consumerCluster.qcDelLock.unlock();
-                return;
-            }
-
-            PubSubResponse response = PubSubResponse.newBuilder().setProtocolVersion(ProtocolVersion.VERSION_ONE)
-                    .setStatusCode(StatusCode.SUCCESS).setTxnId(0).setMessage(message).build();
-            DeliveryEndPoint queueEndPoint = ((ctx == null) ? qc.endPoint : qc.endPoint2);
-            // test
-            /*if (ctx == null) {
-                logger.info("Message to send: " + message.getMsgId().getLocalComponent());
-            } else {
-                logger.info("Message to resend: " + message.getMsgId().getLocalComponent());
-            }*/
-            // First add then send, so removing in other thread can't insert between them
-            qc.unConsumedMsgSeqs.add(new UnConsumedSeq(message.getMsgId().getLocalComponent(), System
-                    .currentTimeMillis()));
-            queueEndPoint.send(response, qc);
-
-            consumerCluster.qcDelLock.unlock();
-
-            ConcurrentLinkedQueue<QueueConsumer> from;
-            ConcurrentLinkedQueue<QueueConsumer> to;
-
-            // qc.isWaiting is also locked
-            consumerCluster.qcMoveLock.lock();
-            // qc must be in waitingConsumers?
-            from = qc.isWaiting.get() ? consumerCluster.waitingConsumers : consumerCluster.busyConsumers;
-            if (qc.unConsumedMsgSeqs.size() >= qc.messageWindowSize) {
-                // logger.info("Move consumer from waitingConsumers to busyConsumers.");
-                qc.isWaiting.set(false);
-                to = consumerCluster.busyConsumers;
-            } else {
-                to = consumerCluster.waitingConsumers;
-            }
-
-            from.remove(qc);
-            to.add(qc);
-            consumerCluster.qcMoveLock.unlock();
-            if (consumerCluster.waitingConsumers.size() == 0) {
-                delivering.set(false);
-            }
-            /* <--msgbus modified */
-
+            enqueueWithoutFailure(new AsyncSendingQueueMessage(message, consumerCluster, ctx));
         }
 
         @Override
@@ -877,6 +818,72 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager, SubChanne
             return sb.toString();
 
         }
+    }
+
+    protected class AsyncSendingQueueMessage implements DeliveryManagerRequest {
+
+        ConsumerCluster cc;
+        Object ctx;
+        Message msg;
+
+        public AsyncSendingQueueMessage(Message msg, ConsumerCluster cc, Object ctx) {
+            super();
+            this.msg = msg;
+            this.cc = cc;
+            this.ctx = ctx;
+        }
+
+        @Override
+        public void performRequest() {
+            /* msgbus modified--> */
+            // Pick one member and send message to it
+            // Not lock. If the consumer is just in the air, it's ok to put
+            // message in retryMessageQueue
+            QueueConsumer qc = cc.waitingConsumers.peek();
+
+            // Suppose that happens rarely, so don't check delivering in advance
+            // Put message in retryMessageQueue.
+            if (qc == null) {
+                logger.info("Can't find waiting queueConsumer. Put the message in retryMessageQueue.");
+                cc.retryMessageQueue.add(new UnConsumedSeq(msg.getMsgId().getLocalComponent(), 0));
+
+                if (ctx == null) {
+                    /* use the old method, its ok */
+                    cc.ass.sendingFinished();
+                }
+                return;
+            }
+
+            PubSubResponse response = PubSubResponse.newBuilder().setProtocolVersion(ProtocolVersion.VERSION_ONE)
+                    .setStatusCode(StatusCode.SUCCESS).setTxnId(0).setMessage(msg).build();
+            DeliveryEndPoint queueEndPoint = ((ctx == null) ? qc.endPoint : qc.endPoint2);
+
+            // First add then send, so removing in other thread can't insert
+            // between them
+            qc.unConsumedMsgSeqs.add(new UnConsumedSeq(msg.getMsgId().getLocalComponent(), System
+                    .currentTimeMillis()));
+            queueEndPoint.send(response, qc);
+
+            ConcurrentLinkedQueue<QueueConsumer> from;
+            ConcurrentLinkedQueue<QueueConsumer> to;
+
+            // qc must be in waitingConsumers?
+            from = qc.isWaiting.get() ? cc.waitingConsumers : cc.busyConsumers;
+            if (qc.unConsumedMsgSeqs.size() >= qc.messageWindowSize) {
+                // logger.info("Move consumer from waitingConsumers to busyConsumers.");
+                qc.isWaiting.set(false);
+                to = cc.busyConsumers;
+            } else {
+                to = cc.waitingConsumers;
+            }
+            from.remove(qc);
+            to.add(qc);
+            if (cc.waitingConsumers.size() == 0) {
+                logger.info("After this message sent out, there remains no waiting consumer.");
+                cc.ass.delivering.set(false);
+            }
+        }
+
     }
 
     protected class StopServingSubscriber implements DeliveryManagerRequest {
@@ -1006,7 +1013,9 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager, SubChanne
 
     @Override
     public void onSubChannelDisconnected(TopicSubscriber topicSubscriber, Channel channel) {
-        /* msgbus modified */
+        logger.info("On channel disconnected");
+        // The unConsumed messages will be moved to retryMessageQueue. Channel
+        // removed from whichever group it belongs to right before disconnected.
         enqueueWithoutFailure(new RemoveChannelForQueueRequest(topicSubscriber, channel));
         /*stopServingSubscriber(topicSubscriber.getTopic(), topicSubscriber.getSubscriberId(),
                 null, NOP_CALLBACK, null);*/
@@ -1081,21 +1090,23 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager, SubChanne
                 // increment deliveried message
                 ServerStats.getInstance().incrementMessagesDelivered();
                 // call deliverNextMessage() after a message is consumed?
-                ass.deliverNextMessage();
             }
-
+            ass.deliverNextMessage();
         }
 
         @Override
         public void transientErrorOnSend() {
             // no one call this
+            logger.info("Transient error!");
         }
 
         @Override
         public void permanentErrorOnSend(Object ctx) {
-            // The unConsumed messages will be moved to retryMessageQueue when the request is processed, and
-            // deliverNextMessage should be called after that moment
-            enqueueWithoutFailure(new RemoveChannelForQueueRequest(new TopicSubscriber(ass.topic, ass.subscriberId), endPoint.channel));
+            // The dirty works that need to be done are taken care of in the
+            // onSubChannelDisconnected, so
+            // simple start next delivery process.
+            logger.info("PermanentError!");
+            ass.deliverNextMessage();
         }
 
         public void resendingFinished() {
@@ -1219,15 +1230,14 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager, SubChanne
             // finally check the states
             // To avoid using lock as far as possible
             if (qc.isWaiting.get() == false) {
-                ass.consumerCluster.qcMoveLock.lock();
-                if (qc.isWaiting.get() == false && qc.unConsumedMsgSeqs.size() < qc.messageWindowSize) {
+                if (qc.unConsumedMsgSeqs.size() < qc.messageWindowSize) {
                     // logger.info("Move consumer from busyConsumers to waitingConsumers.");
                     ass.consumerCluster.busyConsumers.remove(qc);
                     ass.consumerCluster.waitingConsumers.add(qc);
 
                     qc.isWaiting.set(true);
                     logger.info("Try to wake up subscriber to deliver messages again.");
-                    ass.delivering.compareAndSet(false, true);
+                    ass.delivering.set(true);
                     enqueueWithoutFailure(new DeliveryManagerRequest() {
                         @Override
                         public void performRequest() {
@@ -1236,7 +1246,6 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager, SubChanne
                         }
                     });
                 }
-                ass.consumerCluster.qcMoveLock.unlock();
             }
 
             if (!retryMessageQueue.isEmpty()) {
@@ -1245,9 +1254,7 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager, SubChanne
         }
 
         public void addNewConsumer(QueueConsumer qc) {
-            qcMoveLock.lock();
             waitingConsumers.add(qc);
-            qcMoveLock.unlock();
             allConsumers.put(qc.channel, qc);
 
         }
@@ -1374,19 +1381,18 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager, SubChanne
             if (qc == null) {
                 return;
             }
-
-            ass.consumerCluster.qcDelLock.lock();
-            ass.consumerCluster.qcMoveLock.lock();
             ConcurrentLinkedQueue<QueueConsumer> consumers = qc.isWaiting.get() ? cc.waitingConsumers
                     : cc.busyConsumers;
             consumers.remove(qc);
-            ass.consumerCluster.qcMoveLock.unlock();
 
             // Can't modified unConsumedMsgSeqs when addAll() if implemented
             cc.retryMessageQueue.addAll(qc.unConsumedMsgSeqs);
-            ass.consumerCluster.qcDelLock.unlock();
 
+            logger.info("cc.waitingConsumers.size() = " + cc.waitingConsumers.size());
             if (cc.waitingConsumers.size() > 0) {
+                logger.info("One channel disconnected, but still, there're consumers waiting for msg. "
+                        + cc.waitingConsumers.peek().channel.toString());
+                logger.info("Delivering: " + cc.ass.delivering.get());
                 enqueueWithoutFailure(new ResendRequest(cc, false));
             }
 
@@ -1431,15 +1437,13 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager, SubChanne
                     }
                 }
             }
-
             while (!cc.retryMessageQueue.isEmpty()) {
                 unConsumedSeq = cc.retryMessageQueue.first();
                 cc.retryMessageQueue.remove(unConsumedSeq);
                 ScanRequest scanRequest = new ScanRequest(cc.ass.topic, unConsumedSeq.seq, cc.ass, unConsumedSeq.seq);
-                // logger.info("Resend: " + unConsumedSeq.seq);
+                logger.info("Resend: " + unConsumedSeq.seq);
                 persistenceMgr.scanSingleMessage(scanRequest);
             }
-
         }
     }
 
