@@ -807,8 +807,33 @@ p. 我们这里先关注一下AbstractSubscriptionManager在acquiredTopic中做�
 
 具体使用的是由子类实现的虚方法readSubscriptions，这是一个异步方法。在回调函数中会将读取到的所有订阅信息（Map<ByteString, InMemorySubscriptionState> resultOfOperation）放入top2sub2seq。
 
+h2. FIFODeliveryManager.ActiveSubscriberState.deliverNextMessage方法
+
+这个方法的调用时机在原本的代码中有两个：
+* 当一条消息发送完成，亦即当sendingFinished方法得到调用之时，需要开启下一个消息发送流程（一个消息发送流程包含deliverNextMessage、messageScanned、sendingFinished)。这个方法在netty的worker thread中调用。
+* 对于一个订阅者，当它需要的消息scan失败（在PersistenceManager的任务执行中）或发送失败（在netty的worker线程中）时，都会需要在一定时延之后重新开启它的消息发送流程，正是因为刚才提到的两个失败导致发送流程中断了。这个重新开启的动作发生在方法FIFODeliveryManager.retryErroredSubscribers（通过追踪这个方法可以找到相关的一些方法，最关键的是requestQueue）中，它在FIFO自己维护的任务执行线程中调用。而要让任务线程通过retryErroredSubscribers方法能够恢复某个订阅者（状态由ActiveSubscriberState代表）的消息发送流程，需要调用的方法是clearRetryDelayForSubscriber，由于需要变更状态，所以这个方法的调用还是需要放到任务执行线程中。
+
+当然，其实还有一个最初开启这个轮回流转的地方。当订阅者订阅完成，服务端会使用startServingSubscriber将会创建一个ActiveSubscriberState（实现了DeliveryManagerRequest 接口），然后放入requestQueue中，这也是在FIFO自己维护的任务执行线程中调用。
+
+在实现消息队列时，我们手动处理consume动作（FIFODeliveryManager.addConsumeSeqForQueue）。会出现因为没有处在waiting状态的consumer而导致发送流程中断的情况（不同于上述两个原因），如果发现这种情况，就需要在处理consume动作的时候重新开启发送流程。实际使用的方法（调用clearRetryDelayForSubscriber）与上述第二条实际是相同的。
+
 h1. Some code snippets that may be error-prone or improperly designed.
 
 h2. 客户端代码
 
 MessageQueueClient.startDelivery方法抛出过多的exception，这其中应该分类处理，一部分可以被封装，一部分是无法解决的问题。
+
+consumer list，即使是在同一个列表中，在整个消息发送流转过程中也需要不停地将一个consumer从队列头移动到队列尾。如果能够使用一个类似于发送指针的结构就能比较好的缓解这种问题。
+
+h1. bug fixed
+
+h2. Server end
+
+h3. FIFODeliveryManager
+
+h4. 2013/3/28 
+ 
+* Initial scene: Two consumers, A and B, consume from a queue to which 1000 messages are published. After a quite short period of time, one of the consumer,  A, close the msgbus client, mocking a undesired channel disconnected event.
+* Bug description: After A close the connection, the message delivery process of B halt as well. If keep running the test, trying to make sure this happens all the time, about one out of six, if no more, the delivery process just finishes very smoothly.
+* Explanation of the solution: Message was sent by netty and ChannelEndPoint(endpoint wraps channel, and channel wraps socket) is the tool provided by netty for us to use. When using ChannelEndPoint to send message, there might be at most three result, which includes succeed(sendingFinished), transient error and permanent error, each of the three cases has corresponding callback method defined in the callback interface. And it is our obligation to implement this interface and have it passed to the send method when trying to send a message. As a result, we could take some countermeasure when something bad show up or else just let the process go on. FYI, sendingFinished will start the next interation of delivery. Unfortunately, at this time being, we fail to envision such a situation described above, which leads to improper treatment(The very problem is, we don't implement the other two with much wisdom in them). The reason why occasionally test finishes without running into trouble is because the channel disconnects after the sending finished, while most of case, the sendings just collide with the event of socket broken down.
+* Notable staff: When one channel was disconnected, there is one default callback method that's gonna get fired: FIFODeliveryManager.onSubChannelDisconnected. But problem is this buddy doesn't care much about when is the sequence of these events. So in addition to onSubChannelDisconnected, we have to come up with a appropriate implementation of the permanentErrorOnSend, which belongs to interface DeliveryCallback.

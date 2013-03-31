@@ -41,184 +41,206 @@ import com.yonyou.msgbus.client.MsgBusClient;
 @RunWith(Parameterized.class)
 public class TestConsumerCluster extends HedwigHubTestBase1 {
 
-	private static final int DEFAULT_MESSAGE_WINDOW_SIZE = 10;
+    private static final int DEFAULT_MESSAGE_WINDOW_SIZE = 10;
 
-	protected class ConsumerClusterServerConfiguration extends
-			HubServerConfiguration {
+    protected class ConsumerClusterServerConfiguration extends
+    HubServerConfiguration {
 
-		ConsumerClusterServerConfiguration(int serverPort, int sslServerPort) {
-			super(serverPort, sslServerPort);
-		}
+        ConsumerClusterServerConfiguration(int serverPort, int sslServerPort) {
+            super(serverPort, sslServerPort);
+        }
 
-		@Override
-		public int getDefaultMessageWindowSize() {
-			System.out
-					.println("enter..............................getDefaultMW");
-			return TestConsumerCluster.this.DEFAULT_MESSAGE_WINDOW_SIZE;
-		}
-	}
+        @Override
+        public int getDefaultMessageWindowSize() {
+            return TestConsumerCluster.DEFAULT_MESSAGE_WINDOW_SIZE;
+        }
+    }
 
-	@Parameters
-	public static Collection<Object[]> configs() {
-		return Arrays.asList(new Object[][] { { true } /* , { true } */});
-	}
+    protected class TestClientConfiguration extends HubClientConfiguration {
 
-	protected boolean isSubscriptionChannelSharingEnabled;
+        int messageWindowSize;
 
-	public TestConsumerCluster(boolean isSubscriptionChannelSharingEnabled) {
+        TestClientConfiguration() {
+            this.messageWindowSize = 100;
+        }
 
-		super(1);
-		this.isSubscriptionChannelSharingEnabled = isSubscriptionChannelSharingEnabled;
-		System.out.println("enter ..........................constructor");
-	}
+        TestClientConfiguration(int messageWindowSize) {
+            this.messageWindowSize = messageWindowSize;
+        }
 
-	@BeforeClass
-	public static void oneTimeSetUp() {
-		// one-time initialization code
-		System.out
-				.println("@BeforeClass ------------------------- oneTimeSetUp");
-		System.setProperty("build.test.dir", "F:\\test1");
-		System.out.println("......................"
-				+ System.getProperty("build.test.dir", "build"));// ly
+        @Override
+        public int getMaximumOutstandingMessages() {
+            return messageWindowSize;
+        }
 
-	}
+        void setMessageWindowSize(int messageWindowSize) {
+            this.messageWindowSize = messageWindowSize;
+        }
 
-	@Override
-	@Before
-	public void setUp() throws Exception {
-		// System.setProperty("build.test.dir", "F:\\test1");// ly
-		super.setUp();
-		System.out.println("quit.............................setup");
-	}
+        @Override
+        public boolean isAutoSendConsumeMessageEnabled() {
+            return false;
+        }
 
-	@Override
-	protected ServerConfiguration getServerConfiguration(int port, int sslPort) {
-		System.out.println("enter serverConfig........................");
-		return new ConsumerClusterServerConfiguration(port, sslPort);
-	}
+        @Override
+        public boolean isSubscriptionChannelSharingEnabled() {
+            return isSubscriptionChannelSharingEnabled;
+        }
+    }
 
-	public void testMessageQueueClient_pub() throws Exception {
-		String path = "F:/conf/hw_client.conf";
-		final MsgBusClient msgBusClient = new MsgBusClient(path);
-		final MessageQueueClient client = msgBusClient.getMessageQueueClient();
+    @Parameters
+    public static Collection<Object[]> configs() {
+        return Arrays.asList(new Object[][] { { true } /* , { true } */});
+    }
 
-		final String queueName = "messageQueue-test";
-		int length = 1;
-		StringBuffer sb = new StringBuffer("");
-		for (int i = 0; i < length; i++) {
-			sb.append("a");
-		}
-		final String prefix = sb.toString();
+    protected boolean isSubscriptionChannelSharingEnabled;
 
-		final int numMessages = 1000;
+    public TestConsumerCluster(boolean isSubscriptionChannelSharingEnabled) {
 
-		final AtomicInteger numPublished = new AtomicInteger(0);
-		final CountDownLatch publishLatch = new CountDownLatch(1);
-		// final Map<String, MessageSeqId> publishedMsgs = new HashMap<String,
-		// MessageSeqId>();
+        super(1);
+        this.isSubscriptionChannelSharingEnabled = isSubscriptionChannelSharingEnabled;
+        System.out.println("enter ..........................constructor");
+    }
 
-		long start = System.currentTimeMillis();
+    @BeforeClass
+    public static void oneTimeSetUp() {
+        // one-time initialization code
+        System.setProperty("build.test.dir", "E:\\test");
+    }
 
-		System.out.println("Start to asynsPublish!");
-		client.createQueue(queueName);
-		client.publish(queueName, prefix + 1);
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+    }
 
-		// publishedMsgs.put(prefix+0, res.getPublishedMsgId());
-		if (numMessages == numPublished.incrementAndGet()) {
-			publishLatch.countDown();
-		}
+    @Override
+    protected ServerConfiguration getServerConfiguration(int port, int sslPort) {
+        return new ConsumerClusterServerConfiguration(port, sslPort);
+    }
 
-		for (int i = 2; i <= numMessages; i++) {
+    public void testMessageQueueClient_pub() throws Exception {
+        // String path = "F:/conf/hw_client.conf";
+        final MsgBusClient msgBusClient = new MsgBusClient(new TestClientConfiguration());
+        final MessageQueueClient client = msgBusClient.getMessageQueueClient();
 
-			final String str = prefix + i;
+        final String queueName = "messageQueue-test";
+        int length = 1;
+        StringBuffer sb = new StringBuffer("");
+        for (int i = 0; i < length; i++) {
+            sb.append("a");
+        }
+        final String prefix = sb.toString();
 
-			client.asyncPublishWithResponse(queueName, str,
-					new Callback<PublishResponse>() {
-						@Override
-						public void operationFinished(Object ctx,
-								PublishResponse response) {
-							// map, same message content results wrong
-							// publishedMsgs.put(str,
-							// response.getPublishedMsgId());
-							if (numMessages == numPublished.incrementAndGet()) {
-								publishLatch.countDown();
-							}
-						}
+        final int numMessages = 1000;
 
-						@Override
-						public void operationFailed(Object ctx,
-								final PubSubException exception) {
-						}
-					}, null);
-		}
-		long end = System.currentTimeMillis();
+        final AtomicInteger numPublished = new AtomicInteger(0);
+        final CountDownLatch publishLatch = new CountDownLatch(1);
+        // final Map<String, MessageSeqId> publishedMsgs = new HashMap<String,
+        // MessageSeqId>();
 
-		// wait the work to finish
-		assertTrue("Timed out waiting on callback for publish requests.",
-				publishLatch.await(3, TimeUnit.SECONDS));
+        long start = System.currentTimeMillis();
 
-		System.out.println("AsyncPublished " + numMessages + " messages in "
-				+ (end - start) + " ms.");
-		// return client;
-	}
+        System.out.println("Start to asynsPublish!");
+        client.createQueue(queueName);
+        client.publish(queueName, prefix + 1);
 
-	@Test
-	public void test() throws Exception {
+        // publishedMsgs.put(prefix+0, res.getPublishedMsgId());
+        if (numMessages == numPublished.incrementAndGet()) {
+            publishLatch.countDown();
+        }
 
-		class QueueConsumer1 implements Runnable {
+        for (int i = 2; i <= numMessages; i++) {
 
-			@Override
-			public void run() {
-				Tools t = new Tools();
+            final String str = prefix + i;
 
-				String[] myArgs = new String[3];
-				myArgs[0] = "messageQueue-test";
-				myArgs[1] = "500";
-				myArgs[2] = "0";
+            client.asyncPublishWithResponse(queueName, str,
+                    new Callback<PublishResponse>() {
+                @Override
+                public void operationFinished(Object ctx,
+                        PublishResponse response) {
+                    // map, same message content results wrong
+                    // publishedMsgs.put(str,
+                    // response.getPublishedMsgId());
+                    if (numMessages == numPublished.incrementAndGet()) {
+                        publishLatch.countDown();
+                    }
+                }
 
-				try {
-					t.recv(myArgs);
-					System.out.println(Thread.currentThread().getName()
-							+ ":quit.............recv");
-				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				// System.out.println("receiving finished.");
-			}
+                @Override
+                public void operationFailed(Object ctx,
+                        final PubSubException exception) {
+                }
+            }, null);
+        }
+        long end = System.currentTimeMillis();
 
-		}
-		class QueueConsumer2 implements Runnable {
+        // wait the work to finish
+        assertTrue("Timed out waiting on callback for publish requests.",
+                publishLatch.await(3, TimeUnit.SECONDS));
 
-			@Override
-			public void run() {
-				// TODO Auto-generated method stub
-				Tools t = new Tools();
+        System.out.println("AsyncPublished " + numMessages + " messages in "
+                + (end - start) + " ms.");
+        // return client;
+    }
 
-				String[] myArgs = new String[3];
-				myArgs[0] = "messageQueue-test";
-				myArgs[1] = "500";
-				myArgs[2] = "1";
+    @Test
+    public void test() throws Exception {
 
-				try {
-					t.recv(myArgs);
-					System.out.println(Thread.currentThread().getName()
-							+ ":quit.............recv");
-				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				// System.out.println("receiving finished.");
-			}
+        class QueueConsumer1 implements Runnable {
 
-		}
+            @Override
+            public void run() {
+                Tools t = new Tools();
 
-		testMessageQueueClient_pub();
-		new Thread(new QueueConsumer1()).start();
-		new Thread(new QueueConsumer2()).start();
+                String[] myArgs = new String[3];
+                myArgs[0] = "messageQueue-test";
+                myArgs[1] = "500";
+                myArgs[2] = "0";
 
-		Thread.sleep(15000);
-		System.out.println("quit...........main");
+                try {
+                    t.recv(myArgs);
+                    System.out.println(Thread.currentThread().getName()
+                            + ":quit.............recv");
+                } catch (Exception e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+                // System.out.println("receiving finished.");
+            }
 
-	}
+        }
+        class QueueConsumer2 implements Runnable {
+
+            @Override
+            public void run() {
+                // TODO Auto-generated method stub
+                Tools t = new Tools();
+
+                String[] myArgs = new String[3];
+                myArgs[0] = "messageQueue-test";
+                myArgs[1] = "500";
+                myArgs[2] = "1";
+
+                try {
+                    t.recv(myArgs);
+                    System.out.println(Thread.currentThread().getName()
+                            + ":quit.............recv");
+                } catch (Exception e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+                // System.out.println("receiving finished.");
+            }
+
+        }
+
+        testMessageQueueClient_pub();
+        new Thread(new QueueConsumer1()).start();
+        new Thread(new QueueConsumer2()).start();
+
+        Thread.sleep(15000);
+        System.out.println("quit...........main");
+
+    }
 }
