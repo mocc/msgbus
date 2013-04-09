@@ -60,6 +60,8 @@ import org.apache.hedwig.util.Callback;
 
 public class ReadAheadCache implements PersistenceManager, HedwigJMXService {
 
+    /* msgbus test */
+    Boolean col=false;
     static Logger logger = LoggerFactory.getLogger(ReadAheadCache.class);
 
     protected interface CacheRequest {
@@ -253,6 +255,8 @@ public class ReadAheadCache implements PersistenceManager, HedwigJMXService {
             // cache
             CacheKey cacheKey = new CacheKey(originalRequest.getTopic(), resultOfOperation.getLocalComponent());
 
+            // msgbus
+            //logger.info("operationFinished: Will add message {}"+cacheKey);
             enqueueWithoutFailureByTopic(cacheKey.getTopic(),
                     new ScanResponse(cacheKey, messageWithLocalSeqId));
         }
@@ -451,6 +455,8 @@ public class ReadAheadCache implements PersistenceManager, HedwigJMXService {
             // Any message we read is potentially useful for us, so lets first
             // enqueue it
             CacheKey cacheKey = new CacheKey(topic, message.getMsgId().getLocalComponent());
+            // msgbus
+            //logger.info("messageScanned: Will add message {}"+cacheKey);
             enqueueWithoutFailureByTopic(topic, new ScanResponse(cacheKey, message));
 
             // Now lets see if this message is the one we were expecting
@@ -581,8 +587,8 @@ public class ReadAheadCache implements PersistenceManager, HedwigJMXService {
         CacheSegment segment = cacheSegment.get();
 
         long timeOfAddition = 0;
-        synchronized (cacheValue) {
-            if (cacheValue.isStub()) {
+        synchronized (cacheValue) {            
+            if (cacheValue.isStub()) {                
                 cacheValue.setErrorAndInvokeCallbacks(exception);
                 // Stubs are not present in the indexes, so don't need to maintain
                 // indexes here
@@ -630,8 +636,13 @@ public class ReadAheadCache implements PersistenceManager, HedwigJMXService {
     }
 
     private void collectCacheEntriesAtTimestamp(CacheSegment segment, long timestamp) {
-        /* msgbus test */
-        logger.info("collectCacheEntriesAtTimestamp.");
+        /* msgbus test--> */
+        if(!col) {
+            logger.info("collectCacheEntriesAtTimestamp.");
+            col=true;
+        }
+        /* <--msgbus test */
+       
         Set<CacheKey> oldCacheEntries = segment.timeIndexOfAddition.get(timestamp);
 
         // Note: only concrete cache entries, and not stubs are in the time
@@ -641,6 +652,8 @@ public class ReadAheadCache implements PersistenceManager, HedwigJMXService {
             final CacheKey cacheKey = iter.next();
 
             logger.debug("Removing {} from cache because it's the oldest.", cacheKey);
+            //msgbus
+            //logger.info("Removing {} from cache because it's the oldest.", cacheKey);
             removeMessageFromCache(cacheKey, readAheadExceptionInstance, //
                                    // maintainTimeIndex=
                                    false,
@@ -673,7 +686,11 @@ public class ReadAheadCache implements PersistenceManager, HedwigJMXService {
          * on the callbacks registered for that stub, and delete the entry from
          * the cache
          */
+        
+        
         public void performRequest() {
+        //msgbus
+        //logger.info("Removing {} from cache for exception");
             removeMessageFromCache(cacheKey, exception,
                                    // maintainTimeIndex=
                                    true,
@@ -773,6 +790,8 @@ public class ReadAheadCache implements PersistenceManager, HedwigJMXService {
 
                 logger.debug("Removing {} from cache because every subscriber has moved past",
                     cacheKey);
+                //msgbus
+                //logger.info("Removing {} from cache because every subscriber has moved past",cacheKey);
 
                 removeMessageFromCache(cacheKey, readAheadExceptionInstance, //
                                        // maintainTimeIndex=
@@ -827,6 +846,8 @@ public class ReadAheadCache implements PersistenceManager, HedwigJMXService {
             }
 
             if (readAheadRequest != null) {
+                //msgbus
+                //logger.info("Will scanMessages: "+readAheadRequest.getStartSeqId()+"to"+readAheadRequest.messageLimit);
                 realPersistenceManager.scanMessages(readAheadRequest);
             }
         }

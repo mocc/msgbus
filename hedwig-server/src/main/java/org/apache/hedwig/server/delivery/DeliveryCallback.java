@@ -23,7 +23,5 @@ public interface DeliveryCallback {
 
     public void transientErrorOnSend();
 
-    /* msgbus modified, add a parameter*/
-    public void permanentErrorOnSend(Object ctx);
-   
+    public void permanentErrorOnSend();   
 }

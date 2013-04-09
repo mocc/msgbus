@@ -17,6 +17,11 @@
  */
 package org.apache.hedwig.client.netty;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.protobuf.ByteString;
+
 import org.apache.hedwig.client.api.Publisher;
 import org.apache.hedwig.client.data.PubSubData;
 import org.apache.hedwig.client.handlers.PubSubCallback;
@@ -30,10 +35,6 @@ import org.apache.hedwig.protocol.PubSubProtocol.QueueOperationType;
 import org.apache.hedwig.protocol.PubSubProtocol.ResponseBody;
 import org.apache.hedwig.protoextensions.SubscriptionStateUtils;
 import org.apache.hedwig.util.Callback;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.protobuf.ByteString;
 
 /**
  * This is the Hedwig Netty specific implementation of the Publisher interface.
@@ -49,13 +50,12 @@ public class HedwigPublisher implements Publisher {
         this.channelManager = client.getHChannelManager();
     }
 
-    @Override
     public PublishResponse publish(ByteString topic, Message msg)
-            throws CouldNotConnectException, ServiceDownException {
+        throws CouldNotConnectException, ServiceDownException {
 
         if (logger.isDebugEnabled()) {
             logger.debug("Calling a sync publish for topic: {}, msg: {}.",
-                    topic.toStringUtf8(), msg);
+                         topic.toStringUtf8(), msg);
         }
         PubSubData pubSubData = new PubSubData(topic, msg, null, OperationType.PUBLISH, null, null, null);
         synchronized (pubSubData) {
@@ -89,7 +89,7 @@ public class HedwigPublisher implements Publisher {
                     // For other types of PubSubExceptions, just throw a generic
                     // ServiceDownException but log a warning message.
                     logger.error("Unexpected exception type when a sync publish operation failed: ",
-                            failureException);
+                                 failureException);
                     throw new ServiceDownException("Server ack response to publish request is not successful");
                 }
             }
@@ -102,31 +102,29 @@ public class HedwigPublisher implements Publisher {
         }
     }
 
-    @Override
     public void asyncPublish(ByteString topic, Message msg,
-            final Callback<Void> callback, Object context) {
+                             final Callback<Void> callback, Object context) {
         asyncPublishWithResponseImpl(topic, msg,
-                new VoidCallbackAdapter<ResponseBody>(callback), context);
+                                     new VoidCallbackAdapter<ResponseBody>(callback), context);
     }
 
-    @Override
     public void asyncPublishWithResponse(ByteString topic, Message msg,
-            Callback<PublishResponse> callback,
-            Object context) {
+                                         Callback<PublishResponse> callback,
+                                         Object context) {
         // adapt the callback.
         asyncPublishWithResponseImpl(topic, msg,
-                new PublishResponseCallbackAdapter(callback), context);
+                                     new PublishResponseCallbackAdapter(callback), context);
     }
 
     private void asyncPublishWithResponseImpl(ByteString topic, Message msg,
-            Callback<ResponseBody> callback,
-            Object context) {
+                                              Callback<ResponseBody> callback,
+                                              Object context) {
         if (logger.isDebugEnabled()) {
             logger.debug("Calling an async publish for topic: {}, msg: {}.",
-                    topic.toStringUtf8(), msg);
+                         topic.toStringUtf8(), msg);
         }
         PubSubData pubSubData = new PubSubData(topic, msg, null, OperationType.PUBLISH, null,
-                callback, context);
+                                               callback, context);
         channelManager.submitOp(pubSubData);
     }
 
@@ -152,7 +150,7 @@ public class HedwigPublisher implements Publisher {
             delegate.operationFailed(ctx, exception);
         }
     }
-
+    
     /* msgbus add --> */
     public void createQueue(ByteString queueName, Callback<ResponseBody> callback, Object context) {
         PubSubData pubSubData = new PubSubData(queueName, null, SubscriptionStateUtils.QUEUE_SUBID_BS,
@@ -173,8 +171,8 @@ public class HedwigPublisher implements Publisher {
                 null, callback, context);
         channelManager.submitOp(pubSubData);
     }
-
-    public void queryMessageCount(ByteString queueName, Callback<ResponseBody> callback, Object context) {
+    
+    public void getMessageCount(ByteString queueName, Callback<ResponseBody> callback, Object context) {
         PubSubData pubSubData = new PubSubData(queueName, null, SubscriptionStateUtils.QUEUE_SUBID_BS,
                 OperationType.QUEUE_TOPIC_OP, QueueOperationType.QUERY_MSG_CNT, null, callback, context);
         channelManager.submitOp(pubSubData);

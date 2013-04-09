@@ -847,8 +847,10 @@ public class BookkeeperPersistenceManager implements PersistenceManagerWithRange
                     // the ledger is closed before, calling close is just a nop operation.
                     try {
                         ledgerHandle.close();
-                    } catch (InterruptedException ie) {
+                    } catch (InterruptedException ie) {                        
                         // the exception would never be thrown for a read only ledger handle.
+                        /* msgbus */
+                        logger.error("msgbus: InterruptedException");
                     } catch (BKException bke) {
                         // the exception would never be thrown for a read only ledger handle.
                     }

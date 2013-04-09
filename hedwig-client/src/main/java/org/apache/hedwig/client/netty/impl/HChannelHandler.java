@@ -115,15 +115,6 @@ public class HChannelHandler extends SimpleChannelHandler {
         // Determine if this PubSubResponse is an ack response for a PubSub
         // Request or if it is a message being pushed to the client subscriber.
         if (response.hasMessage()) {
-            /*xieyi */
-//            PubSubData data = txn2PubSubData.get(response.getTxnId());
-//            if (data != null && data.operationType == OperationType.QUEUE_TOPIC_OP) {
-//                txn2PubSubData.remove(response.getTxnId());
-//                AbstractResponseHandler respHandler = handlers.get(OperationType.QUEUE_TOPIC_OP);
-//                respHandler.handleResponse(response, data, ctx.getChannel());
-//                return;
-//            }
-            /*xieyi */
             // Subscribed messages being pushed to the client so handle/consume
             // it and return.
             if (null == subHandler) {

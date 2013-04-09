@@ -19,21 +19,22 @@ package org.apache.hedwig.client.netty;
 
 import java.net.InetSocketAddress;
 
+import org.jboss.netty.channel.Channel;
+
 import org.apache.hedwig.client.data.PubSubData;
 import org.apache.hedwig.client.data.TopicSubscriber;
 import org.apache.hedwig.protocol.PubSubProtocol.CloseSubscriptionRequest;
 import org.apache.hedwig.protocol.PubSubProtocol.ConsumeRequest;
 import org.apache.hedwig.protocol.PubSubProtocol.MessageSeqId;
 import org.apache.hedwig.protocol.PubSubProtocol.OperationType;
-import org.apache.hedwig.protocol.PubSubProtocol.ProtocolVersion;
-import org.apache.hedwig.protocol.PubSubProtocol.PubSubRequest;
 import org.apache.hedwig.protocol.PubSubProtocol.PublishRequest;
+import org.apache.hedwig.protocol.PubSubProtocol.PubSubRequest;
+import org.apache.hedwig.protocol.PubSubProtocol.ProtocolVersion;
 import org.apache.hedwig.protocol.PubSubProtocol.QueueMgmtRequest;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionOptions;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionPreferences;
 import org.apache.hedwig.protocol.PubSubProtocol.UnsubscribeRequest;
-import org.jboss.netty.channel.Channel;
 
 /**
  * Utilities for network operations.
@@ -63,7 +64,7 @@ public class NetUtils {
      * @return pub sub request to send
      */
     public static PubSubRequest.Builder buildPubSubRequest(long txnId,
-            PubSubData pubSubData) {
+                                                           PubSubData pubSubData) {
         // Create a PubSubRequest
         PubSubRequest.Builder pubsubRequestBuilder = PubSubRequest.newBuilder();
         pubsubRequestBuilder.setProtocolVersion(ProtocolVersion.VERSION_ONE);
@@ -79,8 +80,9 @@ public class NetUtils {
         pubsubRequestBuilder.setTopic(pubSubData.topic);
 
         switch (pubSubData.operationType) {
-        case PUBLISH:
-            pubsubRequestBuilder.setPublishRequest(buildPublishRequest(pubSubData));
+        case PUBLISH:        
+            // Set the PublishRequest into the outer PubSubRequest            
+            pubsubRequestBuilder.setPublishRequest(buildPublishRequest(pubSubData));            
             break;
         case SUBSCRIBE:
             // Set the SubscribeRequest into the outer PubSubRequest
@@ -93,10 +95,9 @@ public class NetUtils {
         case CLOSESUBSCRIPTION:
             // Set the CloseSubscriptionRequest into the outer PubSubRequest
             pubsubRequestBuilder.setCloseSubscriptionRequest(
-                    buildCloseSubscriptionRequest(pubSubData));
+                buildCloseSubscriptionRequest(pubSubData));
             break;
-        case QUEUE_TOPIC_OP: /* msgbus add */
-            // Set the PublishRequest into the outer PubSubRequest
+        case QUEUE_TOPIC_OP:  /*msgbus add*/
             pubsubRequestBuilder.setQueueMgmtRequest(buildQueueMgmtRequest(pubSubData));
             break;
         }
@@ -117,21 +118,21 @@ public class NetUtils {
 
     // build subscribe request
     private static SubscribeRequest.Builder buildSubscribeRequest(PubSubData pubSubData) { SubscribeRequest.Builder subscribeRequestBuilder = SubscribeRequest.newBuilder();
-    subscribeRequestBuilder.setSubscriberId(pubSubData.subscriberId);
-    subscribeRequestBuilder.setCreateOrAttach(pubSubData.options.getCreateOrAttach());
-    subscribeRequestBuilder.setForceAttach(pubSubData.options.getForceAttach());
-    // For now, all subscribes should wait for all cross-regional
-    // subscriptions to be established before returning.
-    subscribeRequestBuilder.setSynchronous(true);
-    // set subscription preferences
-    SubscriptionPreferences.Builder preferencesBuilder =
+        subscribeRequestBuilder.setSubscriberId(pubSubData.subscriberId);
+        subscribeRequestBuilder.setCreateOrAttach(pubSubData.options.getCreateOrAttach());
+        subscribeRequestBuilder.setForceAttach(pubSubData.options.getForceAttach());
+        // For now, all subscribes should wait for all cross-regional
+        // subscriptions to be established before returning.
+        subscribeRequestBuilder.setSynchronous(true);
+        // set subscription preferences
+        SubscriptionPreferences.Builder preferencesBuilder =
             options2Preferences(pubSubData.options);
-    // backward compatable with 4.1.0
-    if (preferencesBuilder.hasMessageBound()) {
-        subscribeRequestBuilder.setMessageBound(preferencesBuilder.getMessageBound());
-    }
-    subscribeRequestBuilder.setPreferences(preferencesBuilder);
-    return subscribeRequestBuilder;
+        // backward compatable with 4.1.0
+        if (preferencesBuilder.hasMessageBound()) {
+            subscribeRequestBuilder.setMessageBound(preferencesBuilder.getMessageBound());
+        } 
+        subscribeRequestBuilder.setPreferences(preferencesBuilder);
+        return subscribeRequestBuilder;
     }
 
     // build unsubscribe request
@@ -142,19 +143,20 @@ public class NetUtils {
         return unsubscribeRequestBuilder;
     }
 
-    // build queue management request, added by msgbus team
+    /* msgbus--> */
     private static QueueMgmtRequest.Builder buildQueueMgmtRequest(PubSubData pubSubDate) {
         QueueMgmtRequest.Builder queueMgmtRequestBuilder = QueueMgmtRequest.newBuilder();
         queueMgmtRequestBuilder.setType(pubSubDate.queueOperationType);
         return queueMgmtRequestBuilder;
     }
-
+    /* <--msgbus*/
+    
     // build closesubscription request
     private static CloseSubscriptionRequest.Builder
-    buildCloseSubscriptionRequest(PubSubData pubSubData) {
+        buildCloseSubscriptionRequest(PubSubData pubSubData) {
         // Create the CloseSubscriptionRequest
         CloseSubscriptionRequest.Builder closeSubscriptionRequestBuilder =
-                CloseSubscriptionRequest.newBuilder();
+            CloseSubscriptionRequest.newBuilder();
         closeSubscriptionRequestBuilder.setSubscriberId(pubSubData.subscriberId);
         return closeSubscriptionRequestBuilder;
     }
@@ -171,8 +173,8 @@ public class NetUtils {
      * @return pub/sub request.
      */
     public static PubSubRequest.Builder buildConsumeRequest(long txnId,
-            TopicSubscriber topicSubscriber,
-            MessageSeqId messageSeqId) {
+                                                            TopicSubscriber topicSubscriber,
+                                                            MessageSeqId messageSeqId) {
         // Create a PubSubRequest
         PubSubRequest.Builder pubsubRequestBuilder = PubSubRequest.newBuilder();
         pubsubRequestBuilder.setProtocolVersion(ProtocolVersion.VERSION_ONE);
@@ -201,7 +203,7 @@ public class NetUtils {
     private static SubscriptionPreferences.Builder options2Preferences(SubscriptionOptions options) {
         // prepare subscription preferences
         SubscriptionPreferences.Builder preferencesBuilder =
-                SubscriptionPreferences.newBuilder();
+            SubscriptionPreferences.newBuilder();
 
         // set message bound
         if (options.getMessageBound() > 0) {

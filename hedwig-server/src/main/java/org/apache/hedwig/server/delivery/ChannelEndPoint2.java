@@ -20,11 +20,12 @@ package org.apache.hedwig.server.delivery;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
-import org.apache.hedwig.server.common.UnexpectedError;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelFutureListener;
+
+import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
+import org.apache.hedwig.server.common.UnexpectedError;
 
 public class ChannelEndPoint2 implements DeliveryEndPoint, ChannelFutureListener {
 
@@ -40,19 +41,16 @@ public class ChannelEndPoint2 implements DeliveryEndPoint, ChannelFutureListener
         this.channel = channel;
     }
 
-    @Override
     public void close() {
         channel.close();
     }
 
-    @Override
     public void send(PubSubResponse response, DeliveryCallback callback) {
         ChannelFuture future = channel.write(response);
         callbacks.put(future, callback);
         future.addListener(this);
     }
 
-    @Override
     public void operationComplete(ChannelFuture future) throws Exception {
         DeliveryCallback callback = callbacks.get(future);
         callbacks.remove(future);
@@ -65,11 +63,11 @@ public class ChannelEndPoint2 implements DeliveryEndPoint, ChannelFutureListener
             // just change here
             // don't want to change original code everywhere, so use the
             // following code
-            ((FIFODeliveryManager.QueueConsumer) callback).resendingFinished();
+            
         } else {
             // treat all channel errors as permanent
             /* msgbus modified, add a parameter*/
-            callback.permanentErrorOnSend(this);
+            
         }
 
     }

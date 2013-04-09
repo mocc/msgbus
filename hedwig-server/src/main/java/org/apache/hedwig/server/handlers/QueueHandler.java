@@ -36,6 +36,7 @@ import org.apache.hedwig.protoextensions.SubscriptionStateUtils;
 import org.apache.hedwig.server.common.ServerConfiguration;
 import org.apache.hedwig.server.delivery.DeliveryManager;
 import org.apache.hedwig.server.netty.ServerStats;
+import org.apache.hedwig.server.netty.UmbrellaHandler;
 import org.apache.hedwig.server.netty.ServerStats.OpStats;
 import org.apache.hedwig.server.persistence.PersistenceManager;
 import org.apache.hedwig.server.subscriptions.AbstractSubscriptionManager;
@@ -50,7 +51,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.protobuf.ByteString;
 
-/* msgbus add */
+/* msgbus added this file */
 public class QueueHandler extends BaseHandler {
     static Logger logger = LoggerFactory.getLogger(QueueHandler.class);
 
@@ -74,6 +75,12 @@ public class QueueHandler extends BaseHandler {
 
     @Override
     public void handleRequestAtOwner(final PubSubRequest request, final Channel channel) {
+        if (!request.hasQueueMgmtRequest()) {
+            UmbrellaHandler.sendErrorResponseToMalformedRequest(channel, request.getTxnId(),
+                    "Missing queueMgmt request data");            
+            return;
+        }
+        
         QueueOperationType operationType = request.getQueueMgmtRequest().getType();
 
         switch (operationType) {
@@ -200,7 +207,7 @@ public class QueueHandler extends BaseHandler {
     }
 
     // just a interface, not process in client, for efficiency consideration
-    private void getAvailableHubs(final PubSubRequest request, final Channel channel) {
+    private void getAvailableHubs(final PubSubRequest request, final Channel channel) {        
         // Get the list of existing hosts
         ((ZkTopicManager)topicMgr).getAvailableHubs(new Callback<String>(){
 
@@ -222,7 +229,8 @@ public class QueueHandler extends BaseHandler {
         }, null);
     }
 
-    private void queryMessageCount(final PubSubRequest request, final Channel channel) {
+    private void queryMessageCount(final PubSubRequest request, final Channel channel) {      
+        
         final ByteString topic = request.getTopic();
         ((AbstractSubscriptionManager) subMgr).queryMessagesForTopic(topic, new Callback<Long>() {
 
@@ -243,5 +251,5 @@ public class QueueHandler extends BaseHandler {
             }
         }, null);
     }
-
+ 
 }

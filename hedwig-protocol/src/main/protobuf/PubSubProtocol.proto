@@ -73,6 +73,7 @@ enum OperationType{
     // end for requests only used for hedwig proxy
 
     CLOSESUBSCRIPTION = 6;
+    // msgbus
     QUEUE_TOPIC_OP = 7;
 }
 
@@ -101,9 +102,11 @@ message PubSubRequest{
     optional StartDeliveryRequest startDeliveryRequest = 57;
     optional CloseSubscriptionRequest closeSubscriptionRequest = 58;
     
+    // msgbus
     optional QueueMgmtRequest queueMgmtRequest = 91;
 }
 
+// msgbus
 enum QueueOperationType {
 	CREATE = 1;
 	DELETE = 2;
@@ -111,6 +114,7 @@ enum QueueOperationType {
 	QUERY_MSG_CNT = 4; // query message count
 }
 
+// msgbus
 message QueueMgmtRequest {
 	required QueueOperationType type = 1;
 }
@@ -243,6 +247,7 @@ message SubscribeResponse {
     optional SubscriptionPreferences preferences = 2;
 }
 
+// msgbus
 message QueueMgmtResponse {
 	optional string hubList = 4;
 	optional uint64 messageCount = 5;
@@ -252,6 +257,7 @@ message ResponseBody {
     optional PublishResponse publishResponse = 1;
     optional SubscribeResponse subscribeResponse = 2;
     optional SubscriptionEventResponse subscriptionEvent = 3;
+    // msgbus
     optional QueueMgmtResponse queueMgmtResponse = 4;
 }
 

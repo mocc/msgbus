@@ -25,18 +25,26 @@ import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.protobuf.ByteString;
+
+import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.versioning.Version;
+import org.apache.bookkeeper.versioning.Versioned;
 import org.apache.hedwig.exceptions.PubSubException;
 import org.apache.hedwig.exceptions.PubSubException.ServerNotResponsibleForTopicException;
 import org.apache.hedwig.protocol.PubSubProtocol.MessageSeqId;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest;
-import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest.CreateOrAttach;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionData;
-import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionEvent;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionPreferences;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionState;
+import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest.CreateOrAttach;
+import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionEvent;
 import org.apache.hedwig.protoextensions.MessageIdUtils;
 import org.apache.hedwig.protoextensions.SubscriptionStateUtils;
 import org.apache.hedwig.server.common.ServerConfiguration;
@@ -48,10 +56,6 @@ import org.apache.hedwig.server.topics.TopicOwnershipChangeListener;
 import org.apache.hedwig.util.Callback;
 import org.apache.hedwig.util.CallbackUtils;
 import org.apache.hedwig.util.ConcurrencyUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.protobuf.ByteString;
 
 public abstract class AbstractSubscriptionManager implements SubscriptionManager, TopicOwnershipChangeListener {
 
@@ -59,7 +63,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 
     protected final ServerConfiguration cfg;
     protected final ConcurrentHashMap<ByteString, Map<ByteString, InMemorySubscriptionState>> top2sub2seq =
-            new ConcurrentHashMap<ByteString, Map<ByteString, InMemorySubscriptionState>>();
+      new ConcurrentHashMap<ByteString, Map<ByteString, InMemorySubscriptionState>>();
     protected final TopicOpQueuer queuer;
     private final ArrayList<SubscriptionEventListener> listeners = new ArrayList<SubscriptionEventListener>();
 
@@ -80,30 +84,27 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 
     protected final Callback<Void> noopCallback = new NoopCallback<Void>();
 
-    /*xieyi */
-    private final AtomicLong timeStampForTimerTask;
-    /*xieyi */
-
+    /* msgbus */
+    private final AtomicLong timeStampForTimerTask = new AtomicLong(0);    
+    
     static class NoopCallback<T> implements Callback<T> {
         @Override
         public void operationFailed(Object ctx, PubSubException exception) {
             logger.warn("Exception found in AbstractSubscriptionManager : ", exception);
         }
 
-        @Override
         public void operationFinished(Object ctx, T resultOfOperation) {
         };
     }
 
     public AbstractSubscriptionManager(ServerConfiguration cfg, TopicManager tm,
-            PersistenceManager pm, DeliveryManager dm,
-            ScheduledExecutorService scheduler) {
+                                       PersistenceManager pm, DeliveryManager dm,
+                                       ScheduledExecutorService scheduler) {
         this.cfg = cfg;
         queuer = new TopicOpQueuer(scheduler);
         tm.addTopicOwnershipChangeListener(this);
         this.pm = pm;
         this.dm = dm;
-        this.timeStampForTimerTask = new AtomicLong(0);
         // Schedule the recurring MessagesConsumedTask only if a
         // PersistenceManager is passed.
         if (pm != null) {
@@ -149,9 +150,8 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                 // time, or if this is the initial subscription.
                 Long minConsumedFromMap = topic2MinConsumedMessagesMap.get(topic);
                 if (topicSubscriptions.isEmpty()
-                        || (minConsumedFromMap != null && minConsumedFromMap < minConsumedMessage)
-                        || (minConsumedFromMap == null && minConsumedMessage != 0)) {
-                    timeStampForTimerTask.set(System.currentTimeMillis());
+                    || (minConsumedFromMap != null && minConsumedFromMap < minConsumedMessage)
+                    || (minConsumedFromMap == null && minConsumedMessage != 0)) {
                     topic2MinConsumedMessagesMap.put(topic, minConsumedMessage);
                     pm.consumedUntil(topic, minConsumedMessage);
                 } else if (hasBound) {
@@ -160,17 +160,18 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
             }
         }
     }
-
+    
+    /* msgbus add--> */
     /**
      * Get the approximate message count for the given topic.
      * 
      * @param topic
      * @param callback
      * @param ctx
-     * @author Zac, msgbus team
+     * @author Zac , msgbus team, xy
      */
     public void queryMessagesForTopic(ByteString topic,
- Callback<Long> callback, Object ctx) {
+            Callback<Long> callback, Object ctx) {
         queuer.pushAndMaybeRun(topic, new QueryMessagesCountOp(topic, callback,
                 ctx));
     }
@@ -222,6 +223,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
             cb.operationFinished(ctx, lastMsgSeqId - minConsumedMessage);
         }
     }
+    /* <--msgbus add */
 
     private class AcquireOp extends TopicOpQueuer.AsynchronousOp<Void> {
         public AcquireOp(ByteString topic, Callback<Void> callback, Object ctx) {
@@ -243,7 +245,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 
                 @Override
                 public void operationFinished(final Object ctx,
-                        final Map<ByteString, InMemorySubscriptionState> resultOfOperation) {
+                final Map<ByteString, InMemorySubscriptionState> resultOfOperation) {
                     // We've just inherited a bunch of subscriber for this
                     // topic, some of which may be local. If they are, then we
                     // need to (1) notify listeners of this and (2) record the
@@ -256,7 +258,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                         @Override
                         public void operationFailed(Object ctx, PubSubException exception) {
                             logger.error("Subscription manager failed to acquired topic " + topic.toStringUtf8(),
-                                    exception);
+                                         exception);
                             cb.operationFailed(ctx, null);
                         }
 
@@ -318,7 +320,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                 @Override
                 public void operationFinished(Object ctx, Void resultOfOperation) {
                     logger.info("Finished update subscription states when losting topic "
-                            + topic.toStringUtf8());
+                              + topic.toStringUtf8());
                     finish();
                 }
 
@@ -337,11 +339,11 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                         for (ByteString subId : topicSubscriptions.keySet()) {
                             if (logger.isDebugEnabled()) {
                                 logger.debug("Stop serving subscriber (" + topic.toStringUtf8() + ", "
-                                        + subId.toStringUtf8() + ") when losing topic");
+                                           + subId.toStringUtf8() + ") when losing topic");
                             }
                             if (null != dm) {
                                 dm.stopServingSubscriber(topic, subId, SubscriptionEvent.TOPIC_MOVED,
-                                        noopCallback, null);
+                                                         noopCallback, null);
                             }
                         }
                     }
@@ -395,16 +397,16 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 
     protected abstract void readSubscriptions(final ByteString topic,
             final Callback<Map<ByteString, InMemorySubscriptionState>> cb, final Object ctx);
-
-    protected abstract void readSubscriptionData(final ByteString topic, final ByteString subscriberId,
+    
+    protected abstract void readSubscriptionData(final ByteString topic, final ByteString subscriberId, 
             final Callback<InMemorySubscriptionState> cb, Object ctx);
-
+    
     private class SubscribeOp extends TopicOpQueuer.AsynchronousOp<SubscriptionData> {
         SubscribeRequest subRequest;
         MessageSeqId consumeSeqId;
 
         public SubscribeOp(ByteString topic, SubscribeRequest subRequest, MessageSeqId consumeSeqId,
-                Callback<SubscriptionData> callback, Object ctx) {
+                           Callback<SubscriptionData> callback, Object ctx) {
             queuer.super(topic, callback, ctx);
             this.subRequest = subRequest;
             this.consumeSeqId = consumeSeqId;
@@ -427,8 +429,8 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 
                 if (createOrAttach.equals(CreateOrAttach.CREATE)) {
                     String msg = "Topic: " + topic.toStringUtf8() + " subscriberId: " + subscriberId.toStringUtf8()
-                            + " requested creating a subscription but it is already subscribed with state: "
-                            + SubscriptionStateUtils.toString(subscriptionState.getSubscriptionState());
+                                 + " requested creating a subscription but it is already subscribed with state: "
+                                 + SubscriptionStateUtils.toString(subscriptionState.getSubscriptionState());
                     logger.error(msg);
                     cb.operationFailed(ctx, new PubSubException.ClientAlreadySubscribedException(msg));
                     return;
@@ -438,7 +440,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                 // if new preferences provided, merged the subscription data and updated them
                 // TODO: needs ACL mechanism when changing preferences
                 if (subRequest.hasPreferences() &&
-                        subscriptionState.updatePreferences(subRequest.getPreferences())) {
+                    subscriptionState.updatePreferences(subRequest.getPreferences())) {
                     updateSubscriptionPreferences(topic, subscriberId, subscriptionState, new Callback<Void>() {
                         @Override
                         public void operationFailed(Object ctx, PubSubException exception) {
@@ -449,10 +451,10 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                         public void operationFinished(Object ctx, Void resultOfOperation) {
                             if (logger.isDebugEnabled()) {
                                 logger.debug("Topic: " + topic.toStringUtf8() + " subscriberId: " + subscriberId.toStringUtf8()
-                                        + " attaching to subscription with state: "
-                                        + SubscriptionStateUtils.toString(subscriptionState.getSubscriptionState())
-                                        + ", with preferences: "
-                                        + SubscriptionStateUtils.toString(subscriptionState.getSubscriptionPreferences()));
+                                             + " attaching to subscription with state: "
+                                             + SubscriptionStateUtils.toString(subscriptionState.getSubscriptionState())
+                                             + ", with preferences: "
+                                             + SubscriptionStateUtils.toString(subscriptionState.getSubscriptionPreferences()));
                             }
                             // update message bound if necessary
                             updateMessageBound(topic);
@@ -465,10 +467,10 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                 // otherwise just attach
                 if (logger.isDebugEnabled()) {
                     logger.debug("Topic: " + topic.toStringUtf8() + " subscriberId: " + subscriberId.toStringUtf8()
-                            + " attaching to subscription with state: "
-                            + SubscriptionStateUtils.toString(subscriptionState.getSubscriptionState())
-                            + ", with preferences: "
-                            + SubscriptionStateUtils.toString(subscriptionState.getSubscriptionPreferences()));
+                                 + " attaching to subscription with state: "
+                                 + SubscriptionStateUtils.toString(subscriptionState.getSubscriptionState())
+                                 + ", with preferences: "
+                                 + SubscriptionStateUtils.toString(subscriptionState.getSubscriptionPreferences()));
                 }
 
                 cb.operationFinished(ctx, subscriptionState.toSubscriptionData());
@@ -478,7 +480,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
             // we don't have a mapping for this subscriber
             if (createOrAttach.equals(CreateOrAttach.ATTACH)) {
                 String msg = "Topic: " + topic.toStringUtf8() + " subscriberId: " + subscriberId.toStringUtf8()
-                        + " requested attaching to an existing subscription but it is not subscribed";
+                             + " requested attaching to an existing subscription but it is not subscribed";
                 logger.error(msg);
                 cb.operationFailed(ctx, new PubSubException.ClientNotSubscribedException(msg));
                 return;
@@ -500,7 +502,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
             }
 
             SubscriptionData.Builder subDataBuilder =
-                    SubscriptionData.newBuilder().setState(stateBuilder).setPreferences(preferencesBuilder);
+                SubscriptionData.newBuilder().setState(stateBuilder).setPreferences(preferencesBuilder);
             final SubscriptionData subData = subDataBuilder.build();
 
             createSubscriptionData(topic, subscriberId, subData, new Callback<Version>() {
@@ -515,7 +517,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                         @Override
                         public void operationFailed(final Object ctx, final PubSubException exception) {
                             logger.error("subscription for subscriber " + subscriberId.toStringUtf8() + " to topic "
-                                    + topic.toStringUtf8() + " failed due to failed listener callback", exception);
+                                         + topic.toStringUtf8() + " failed due to failed listener callback", exception);
                             // should remove subscription when synchronized cross-region subscription failed
                             deleteSubscriptionData(topic, subscriberId, version, new Callback<Void>() {
                                 @Override
@@ -527,7 +529,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                                 public void operationFailed(Object context,
                                         PubSubException ex) {
                                     logger.error("Remove subscription for subscriber " + subscriberId.toStringUtf8() + " to topic "
-                                            + topic.toStringUtf8() + " failed : ", ex);
+                                                 + topic.toStringUtf8() + " failed : ", ex);
                                     finish();
                                 }
                                 private void finish() {
@@ -549,7 +551,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 
                     // if this will be the first local subscription, notifyFirstLocalSubscribe
                     if (!SubscriptionStateUtils.isHubSubscriber(subRequest.getSubscriberId())
-                            && !hasLocalSubscriptions(topicSubscriptions))
+                        && !hasLocalSubscriptions(topicSubscriptions))
                         notifyFirstLocalSubscribe(topic, subRequest.getSynchronous(), cb2, ctx);
                     else
                         cb2.operationFinished(ctx, null);
@@ -563,10 +565,10 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
      * the vast majority of subscriptions are local, so we will quickly encounter one if it exists.
      */
     private static boolean hasLocalSubscriptions(Map<ByteString, InMemorySubscriptionState> topicSubscriptions) {
-        for (ByteString subId : topicSubscriptions.keySet())
-            if (!SubscriptionStateUtils.isHubSubscriber(subId))
-                return true;
-        return false;
+      for (ByteString subId : topicSubscriptions.keySet())
+        if (!SubscriptionStateUtils.isHubSubscriber(subId))
+          return true;
+      return false;
     }
 
     public void updateMessageBound(ByteString topic) {
@@ -592,7 +594,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 
     @Override
     public void serveSubscribeRequest(ByteString topic, SubscribeRequest subRequest, MessageSeqId consumeSeqId,
-            Callback<SubscriptionData> callback, Object ctx) {
+                                      Callback<SubscriptionData> callback, Object ctx) {
         queuer.pushAndMaybeRun(topic, new SubscribeOp(topic, subRequest, consumeSeqId, callback, ctx));
     }
 
@@ -601,7 +603,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
         MessageSeqId consumeSeqId;
 
         public ConsumeOp(ByteString topic, ByteString subscriberId, MessageSeqId consumeSeqId, Callback<Void> callback,
-                Object ctx) {
+                         Object ctx) {
             queuer.super(topic, callback, ctx);
             this.subscriberId = subscriberId;
             this.consumeSeqId = consumeSeqId;
@@ -637,10 +639,10 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
             } else {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Only advanced consume pointer in memory, will persist later, topic: "
-                            + topic.toStringUtf8() + " subscriberId: " + subscriberId.toStringUtf8()
-                            + " persistentState: " + SubscriptionStateUtils.toString(subState.getSubscriptionState())
-                            + " in-memory consume-id: "
-                            + MessageIdUtils.msgIdToReadableString(subState.getLastConsumeSeqId()));
+                                 + topic.toStringUtf8() + " subscriberId: " + subscriberId.toStringUtf8()
+                                 + " persistentState: " + SubscriptionStateUtils.toString(subState.getSubscriptionState())
+                                 + " in-memory consume-id: "
+                                 + MessageIdUtils.msgIdToReadableString(subState.getLastConsumeSeqId()));
                 }
                 cb.operationFinished(ctx, null);
             }
@@ -654,11 +656,11 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
     /* msgbus add--> */
     public void addConsumeSeqIdForSubscriber(ByteString topic, ByteString subscriberId, MessageSeqId consumeSeqId,
             Callback<Void> callback, Object ctx) {
-
+        
         dm.addConsumeSeqForQueue(topic, subscriberId, consumeSeqId, this, callback, ctx);
     }
     /* <--msgbus add */
-
+    
     @Override
     public void setConsumeSeqIdForSubscriber(ByteString topic, ByteString subscriberId, MessageSeqId consumeSeqId,
             Callback<Void> callback, Object ctx) {
@@ -668,7 +670,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
     private class CloseSubscriptionOp extends TopicOpQueuer.AsynchronousOp<Void> {
 
         public CloseSubscriptionOp(ByteString topic, ByteString subscriberId,
-                Callback<Void> callback, Object ctx) {
+                                   Callback<Void> callback, Object ctx) {
             queuer.super(topic, callback, ctx);
         }
 
@@ -683,7 +685,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
 
     @Override
     public void closeSubscription(ByteString topic, ByteString subscriberId,
-            Callback<Void> callback, Object ctx) {
+                                  Callback<Void> callback, Object ctx) {
         queuer.pushAndMaybeRun(topic, new CloseSubscriptionOp(topic, subscriberId, callback, ctx));
     }
 
@@ -707,7 +709,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                 cb.operationFailed(ctx, new PubSubException.ClientNotSubscribedException(""));
                 return;
             }
-
+            
             deleteSubscriptionData(topic, subscriberId, topicSubscriptions.get(subscriberId).getVersion(),
                     new Callback<Void>() {
                 @Override
@@ -720,7 +722,7 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                     topicSubscriptions.remove(subscriberId);
                     // Notify listeners if necessary.
                     if (!SubscriptionStateUtils.isHubSubscriber(subscriberId)
-                            && !hasLocalSubscriptions(topicSubscriptions))
+                        && !hasLocalSubscriptions(topicSubscriptions))
                         notifyLastLocalUnsubscribe(topic);
 
                     updateMessageBound(topic);
@@ -749,7 +751,6 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
      * Method to stop this class gracefully including releasing any resources
      * used and stopping all threads spawned.
      */
-    @Override
     public void stop() {
         timer.cancel();
         try {
@@ -776,8 +777,8 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
     }
 
     private void updateSubscriptionState(final ByteString topic, final ByteString subscriberId,
-            final InMemorySubscriptionState state,
-            final Callback<Void> callback, Object ctx) {
+                                         final InMemorySubscriptionState state,
+                                         final Callback<Void> callback, Object ctx) {
         SubscriptionData subData;
         Callback<Version> cb = new Callback<Version>() {
             @Override
@@ -801,9 +802,9 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                             callback.operationFailed(ctx, exception);
                         }
                     }, ctx);
-
+                    
                     return;
-                }
+                } 
                 callback.operationFailed(ctx, exception);
             }
         };
@@ -817,8 +818,8 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
     }
 
     private void updateSubscriptionPreferences(final ByteString topic, final ByteString subscriberId,
-            final InMemorySubscriptionState state,
-            final Callback<Void> callback, Object ctx) {
+                                               final InMemorySubscriptionState state,
+                                               final Callback<Void> callback, Object ctx) {
         SubscriptionData subData;
         Callback<Version> cb = new Callback<Version>() {
             @Override
@@ -842,9 +843,9 @@ public abstract class AbstractSubscriptionManager implements SubscriptionManager
                             callback.operationFailed(ctx, exception);
                         }
                     }, ctx);
-
+                    
                     return;
-                }
+                } 
                 callback.operationFailed(ctx, exception);
             }
         };

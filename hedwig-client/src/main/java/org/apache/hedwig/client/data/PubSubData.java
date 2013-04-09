@@ -19,6 +19,7 @@ package org.apache.hedwig.client.data;
 
 import java.util.List;
 
+import com.google.protobuf.ByteString;
 import org.apache.hedwig.client.netty.HChannel;
 import org.apache.hedwig.protocol.PubSubProtocol;
 import org.apache.hedwig.protocol.PubSubProtocol.Message;
@@ -26,8 +27,6 @@ import org.apache.hedwig.protocol.PubSubProtocol.OperationType;
 import org.apache.hedwig.protocol.PubSubProtocol.QueueOperationType;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionOptions;
 import org.apache.hedwig.util.Callback;
-
-import com.google.protobuf.ByteString;
 
 /**
  * Wrapper class to store all of the data points needed to encapsulate all
@@ -49,14 +48,11 @@ public class PubSubData {
     // Enum to indicate what type of operation this PubSub request data object
     // is for.
     public final OperationType operationType;
-
-    // Enum to indicate what type of queue operation this PubSub request data
-    // object
-    // is for, added by msgbus team.
-    public final QueueOperationType queueOperationType;
-
     // Options for the subscription
     public final SubscriptionOptions options;
+    
+    // msgbus: Type of queue operation
+    public final QueueOperationType queueOperationType;
 
     // These two variables are not final since we might override them
     // in the case of a Subscribe reconnect.
@@ -94,21 +90,22 @@ public class PubSubData {
     // Record the original channel for a resubscribe request
     private HChannel origChannel = null;
 
+    /* msgbus modified--> */
     // Constructor for all types of PubSub request data to send to the server
     public PubSubData(final ByteString topic, final Message msg, final ByteString subscriberId,
-            final OperationType operationType, final SubscriptionOptions options,
-            final Callback<PubSubProtocol.ResponseBody> callback,
-            final Object context) {
+                      final OperationType operationType, final SubscriptionOptions options,
+                      final Callback<PubSubProtocol.ResponseBody> callback,
+                      final Object context) {
         this.topic = topic;
         this.msg = msg;
         this.subscriberId = subscriberId;
         this.operationType = operationType;
         this.options = options;
         this.callback = callback;
-        this.context = context;
+        this.context = context;        
         this.queueOperationType = null;
     }
-
+    
     public PubSubData(final ByteString topic, final Message msg, final ByteString subscriberId,
             final OperationType operationType, final QueueOperationType queueOperationType,
             final SubscriptionOptions options, final Callback<PubSubProtocol.ResponseBody> callback,
@@ -122,6 +119,7 @@ public class PubSubData {
         this.context = context;
         this.queueOperationType = queueOperationType;
     }
+    /* <--msgbus modified */
 
     public void setCallback(Callback<PubSubProtocol.ResponseBody> callback) {
         this.callback = callback;
@@ -171,7 +169,7 @@ public class PubSubData {
             sb.append(COMMA).append("Operation Type: " + operationType.toString());
         if (options != null)
             sb.append(COMMA).append("Create Or Attach: " + options.getCreateOrAttach().toString())
-            .append(COMMA).append("Message Bound: " + options.getMessageBound());
+                .append(COMMA).append("Message Bound: " + options.getMessageBound());
         if (triedServers != null && triedServers.size() > 0) {
             sb.append(COMMA).append("Tried Servers: ");
             for (ByteString triedServer : triedServers) {
