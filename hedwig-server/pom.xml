@@ -173,8 +173,10 @@
     </dependency>
     <dependency>
     	<groupId>com.yonyou</groupId>
-    	<artifactId>msgbus</artifactId>
+    	<artifactId>msgbus-mq</artifactId>
     	<version>0.0.1-SNAPSHOT</version>
+    	<type>jar</type>
+    	<scope>test</scope>
     </dependency>
   </dependencies>
   <build>

@@ -41,11 +41,10 @@ public class MessageQueueClient {
         this.subscriber = subscriber;
     }
 
-
-    public boolean createQueue(String queueName) throws InterruptedException  {
+    public boolean createQueue(String queueName) throws InterruptedException {
         final CountDownLatch signal = new CountDownLatch(1);
-        final AtomicBoolean bSuccess=new AtomicBoolean(false);
-        ((HedwigPublisher)publisher).createQueue(ByteString.copyFromUtf8(queueName), new Callback<ResponseBody>(){
+        final AtomicBoolean bSuccess = new AtomicBoolean(false);
+        ((HedwigPublisher) publisher).createQueue(ByteString.copyFromUtf8(queueName), new Callback<ResponseBody>() {
 
             @Override
             public void operationFinished(Object ctx, ResponseBody resultOfOperation) {
@@ -61,7 +60,7 @@ public class MessageQueueClient {
 
         }, null);
 
-        if(!signal.await(5,TimeUnit.SECONDS)){
+        if (!signal.await(5, TimeUnit.SECONDS)) {
             logger.info("Can't create queue in 5 seconds.");
             return false;
         }
@@ -71,8 +70,8 @@ public class MessageQueueClient {
     // ok?
     public boolean deleteQueue(String queueName) throws InterruptedException {
         final CountDownLatch signal = new CountDownLatch(1);
-        final AtomicBoolean bSuccess=new AtomicBoolean(false);
-        ((HedwigPublisher)publisher).deleteQueue(ByteString.copyFromUtf8(queueName), new Callback<ResponseBody>(){
+        final AtomicBoolean bSuccess = new AtomicBoolean(false);
+        ((HedwigPublisher) publisher).deleteQueue(ByteString.copyFromUtf8(queueName), new Callback<ResponseBody>() {
 
             @Override
             public void operationFinished(Object ctx, ResponseBody resultOfOperation) {
@@ -88,7 +87,7 @@ public class MessageQueueClient {
 
         }, null);
 
-        if(!signal.await(5,TimeUnit.SECONDS)){
+        if (!signal.await(5, TimeUnit.SECONDS)) {
             logger.info("Can't delete queue in 5 seconds.");
             return false;
         }
@@ -99,8 +98,7 @@ public class MessageQueueClient {
     public long queryMessageCount(String queueName) throws InterruptedException {
         final CountDownLatch signal = new CountDownLatch(1);
         final AtomicLong count = new AtomicLong(0);
-        ((HedwigPublisher) publisher).queryMessageCount(ByteString.copyFromUtf8(queueName),
-                new Callback<ResponseBody>() {
+        ((HedwigPublisher) publisher).getMessageCount(ByteString.copyFromUtf8(queueName), new Callback<ResponseBody>() {
 
             @Override
             public void operationFinished(Object ctx, ResponseBody resultOfOperation) {
@@ -158,21 +156,24 @@ public class MessageQueueClient {
      */
     // In Queue, Put subscribe and delivery together
     public void startDelivery(final String queueName, final MessageHandler handler, SubscriptionOptions options)
-            throws ClientNotSubscribedException, AlreadyStartDeliveryException, CouldNotConnectException, ClientAlreadySubscribedException, ServiceDownException, InvalidSubscriberIdException {
+            throws ClientNotSubscribedException, AlreadyStartDeliveryException, CouldNotConnectException,
+            ClientAlreadySubscribedException, ServiceDownException, InvalidSubscriberIdException {
         subscriber.subscribe(ByteString.copyFromUtf8(queueName), SubscriptionStateUtils.QUEUE_SUBID_BS, options);
-        //subscriber.startDelivery(ByteString.copyFromUtf8(queueName), SubscriptionStateUtils.QUEUE_SUBID_BS, handler);
-        subscriber.startDelivery(ByteString.copyFromUtf8(queueName), SubscriptionStateUtils.QUEUE_SUBID_BS, new MessageHandler(){
+        // subscriber.startDelivery(ByteString.copyFromUtf8(queueName),
+        // SubscriptionStateUtils.QUEUE_SUBID_BS, handler);
+        subscriber.startDelivery(ByteString.copyFromUtf8(queueName), SubscriptionStateUtils.QUEUE_SUBID_BS,
+                new MessageHandler() {
 
-            @Override
-            public void deliver(ByteString topic, ByteString subscriberId, Message msg, Callback<Void> callback,
-                    Object context) {
-                // TODO Auto-generated method stub
-                handler.deliver(topic, subscriberId, msg, callback, context);
-                // This is necessary
-                callback.operationFinished(context,null);
-            }
+                    @Override
+                    public void deliver(ByteString topic, ByteString subscriberId, Message msg,
+                            Callback<Void> callback, Object context) {
+                        // TODO Auto-generated method stub
+                        handler.deliver(topic, subscriberId, msg, callback, context);
+                        // This is necessary
+                        callback.operationFinished(context, null);
+                    }
 
-        });
+                });
     }
 
     public void stopDelivery(final String queueName) throws ClientNotSubscribedException {
