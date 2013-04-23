@@ -825,15 +825,35 @@ MessageQueueClient.startDelivery方法抛出过多的exception，这其中应该
 
 consumer list，即使是在同一个列表中，在整个消息发送流转过程中也需要不停地将一个consumer从队列头移动到队列尾。如果能够使用一个类似于发送指针的结构就能比较好的缓解这种问题。
 
-h1. bug fixed
+h1. bug encountered
 
 h2. Server end
 
 h3. FIFODeliveryManager
 
-h4. 2013/3/28 
+h4. 2013/3/26 
  
 * Initial scene: Two consumers, A and B, consume from a queue to which 1000 messages are published. After a quite short period of time, one of the consumer,  A, close the msgbus client, mocking a undesired channel disconnected event.
 * Bug description: After A close the connection, the message delivery process of B halt as well. If keep running the test, trying to make sure this happens all the time, about one out of six, if no more, the delivery process just finishes very smoothly.
 * Explanation of the solution: Message was sent by netty and ChannelEndPoint(endpoint wraps channel, and channel wraps socket) is the tool provided by netty for us to use. When using ChannelEndPoint to send message, there might be at most three result, which includes succeed(sendingFinished), transient error and permanent error, each of the three cases has corresponding callback method defined in the callback interface. And it is our obligation to implement this interface and have it passed to the send method when trying to send a message. As a result, we could take some countermeasure when something bad show up or else just let the process go on. FYI, sendingFinished will start the next interation of delivery. Unfortunately, at this time being, we fail to envision such a situation described above, which leads to improper treatment(The very problem is, we don't implement the other two with much wisdom in them). The reason why occasionally test finishes without running into trouble is because the channel disconnects after the sending finished, while most of case, the sendings just collide with the event of socket broken down.
 * Notable staff: When one channel was disconnected, there is one default callback method that's gonna get fired: FIFODeliveryManager.onSubChannelDisconnected. But problem is this buddy doesn't care much about when is the sequence of these events. So in addition to onSubChannelDisconnected, we have to come up with a appropriate implementation of the permanentErrorOnSend, which belongs to interface DeliveryCallback.
+
+p{color:red}. fixed.
+
+h4. 2013/3/28
+
+* bug描述：完成上一个bug修复之后，观察到会有一条消息被重复发两次。一开始以为是这个消息首先被发到A，然后A断开，导致这条消息没有被consume，以至于超时被重发了第二次。后来通过添加日志记录，发现实际上这条消息会被发给B两次。
+* bug定位：由于没有调用sendingFinished，指针没有移动，所以下一次正常发送还是会发这一条消息。问题在于，这条消息还同时被加入到了retryMessageQueue中。
+* 解决方案：在permanentErrorOnSending中移动指针，或在permanentErrorOnSending将retryMessageQueue中的这条消息删除。当前选择前一种方案，实现简单，不排除之后变更的可能。
+
+p{color:red}. fixed.
+
+h3. ReadAheadCache
+
+h4. 2013/4/11
+
+* bug描述：发现系统长时间运行时，消息所占空间会达到cache设定的缓存size大小，这样会按时间顺序删除最早的消息。
+* bug定位：在addMessageToCache中，原来的代码会根据message的大小增加cache中的缓存大小，然后才判断消息是否为空，非空的话直接返回。这样就会导致，如果cache中已经有了此条消息，依然会被加入到cache的presentSegmentSize中，使得cache缓存的size值超过额定值，会调用回收消息的操作。
+* 解决方案：如果cache中消息已经存在，则addMessageToCache函数直接返回。
+
+p{color:red}. fixed.

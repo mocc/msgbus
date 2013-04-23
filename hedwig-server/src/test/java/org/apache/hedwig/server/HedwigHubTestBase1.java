@@ -65,8 +65,8 @@ public abstract class HedwigHubTestBase1 extends TestCase {
 
 		serverAddresses = new LinkedList<HedwigSocketAddress>();
 		for (int i = 0; i < numServers; i++) {
-			serverAddresses.add(new HedwigSocketAddress("localhost", 60000,
-					60001));
+			serverAddresses
+					.add(new HedwigSocketAddress("localhost", 4080, 9876));
 		}
 	}
 

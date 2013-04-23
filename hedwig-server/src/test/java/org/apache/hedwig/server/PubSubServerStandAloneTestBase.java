@@ -19,85 +19,82 @@ package org.apache.hedwig.server;
 
 import junit.framework.TestCase;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.junit.After;
-import org.junit.Before;
-
-import org.apache.bookkeeper.test.PortManager;
-
 import org.apache.hedwig.client.conf.ClientConfiguration;
-import org.apache.hedwig.server.LoggingExceptionHandler;
 import org.apache.hedwig.server.common.ServerConfiguration;
 import org.apache.hedwig.server.netty.PubSubServer;
 import org.apache.hedwig.util.HedwigSocketAddress;
+import org.junit.After;
+import org.junit.Before;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This is a base class for any tests that need a StandAlone PubSubServer setup.
  */
 public abstract class PubSubServerStandAloneTestBase extends TestCase {
 
-    protected static Logger logger = LoggerFactory.getLogger(PubSubServerStandAloneTestBase.class);
+	protected static Logger logger = LoggerFactory
+			.getLogger(PubSubServerStandAloneTestBase.class);
 
-    protected class StandAloneServerConfiguration extends ServerConfiguration {
-        final int port = PortManager.nextFreePort();
-        final int sslPort = PortManager.nextFreePort();
+	protected class StandAloneServerConfiguration extends ServerConfiguration {
+		final int port = /* PortManager.nextFreePort() */4080;
+		final int sslPort = /* PortManager.nextFreePort() */9876;
 
-        @Override
-        public boolean isStandalone() {
-            return true;
-        }
+		@Override
+		public boolean isStandalone() {
+			return true;
+		}
 
-        @Override
-        public int getServerPort() {
-            return port;
-        }
+		@Override
+		public int getServerPort() {
+			return port;
+		}
 
-        @Override
-        public int getSSLServerPort() {
-            return sslPort;
-        }
-    }
+		@Override
+		public int getSSLServerPort() {
+			return sslPort;
+		}
+	}
 
-    public ServerConfiguration getStandAloneServerConfiguration() {
-        return new StandAloneServerConfiguration();
-    }
+	public ServerConfiguration getStandAloneServerConfiguration() {
+		return new StandAloneServerConfiguration();
+	}
 
-    protected PubSubServer server;
-    protected ServerConfiguration conf;
-    protected HedwigSocketAddress defaultAddress;
+	protected PubSubServer server;
+	protected ServerConfiguration conf;
+	protected HedwigSocketAddress defaultAddress;
 
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        logger.info("STARTING " + getName());
-        conf = getStandAloneServerConfiguration();
-        startHubServer(conf);
-        logger.info("Standalone PubSubServer test setup finished");
-    }
+	@Override
+	@Before
+	public void setUp() throws Exception {
+		logger.info("STARTING " + getName());
+		conf = getStandAloneServerConfiguration();
+		startHubServer(conf);
+		logger.info("Standalone PubSubServer test setup finished");
+	}
 
+	@Override
+	@After
+	public void tearDown() throws Exception {
+		logger.info("tearDown starting");
+		tearDownHubServer();
+		logger.info("FINISHED " + getName());
+	}
 
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        logger.info("tearDown starting");
-        tearDownHubServer();
-        logger.info("FINISHED " + getName());
-    }
+	protected HedwigSocketAddress getDefaultHedwigAddress() {
+		return defaultAddress;
+	}
 
-    protected HedwigSocketAddress getDefaultHedwigAddress() {
-        return defaultAddress;
-    }
+	protected void startHubServer(ServerConfiguration conf) throws Exception {
+		defaultAddress = new HedwigSocketAddress("localhost",
+				conf.getServerPort(), conf.getSSLServerPort());
+		server = new PubSubServer(conf, new ClientConfiguration(),
+				new LoggingExceptionHandler());
+		server.start();
+	}
 
-    protected void startHubServer(ServerConfiguration conf) throws Exception {
-        defaultAddress = new HedwigSocketAddress("localhost", conf.getServerPort(),
-                                                 conf.getSSLServerPort());
-        server = new PubSubServer(conf, new ClientConfiguration(), new LoggingExceptionHandler());
-        server.start();
-    }
-
-    protected void tearDownHubServer() throws Exception {
-        server.shutdown();
-    }
+	protected void tearDownHubServer() throws Exception {
+		server.shutdown();
+	}
 
 }

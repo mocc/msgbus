@@ -20,75 +20,83 @@ package org.apache.hedwig.server.delivery;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
+import org.apache.hedwig.server.common.UnexpectedError;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelFutureListener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.hedwig.protocol.PubSubProtocol.PubSubResponse;
-import org.apache.hedwig.server.common.UnexpectedError;
+public class ChannelEndPoint2 implements DeliveryEndPoint,
+		ChannelFutureListener {
+	protected static final Logger logger = LoggerFactory
+			.getLogger(ChannelEndPoint2.class);
+	Channel channel;
 
-public class ChannelEndPoint2 implements DeliveryEndPoint, ChannelFutureListener {
+	public Channel getChannel() {
+		return channel;
+	}
 
-    Channel channel;
+	Map<ChannelFuture, DeliveryCallback> callbacks = new HashMap<ChannelFuture, DeliveryCallback>();
 
-    public Channel getChannel() {
-        return channel;
-    }
+	public ChannelEndPoint2(Channel channel) {
+		this.channel = channel;
+	}
 
-    Map<ChannelFuture, DeliveryCallback> callbacks = new HashMap<ChannelFuture, DeliveryCallback>();
+	public void close() {
+		channel.close();
+	}
 
-    public ChannelEndPoint2(Channel channel) {
-        this.channel = channel;
-    }
+	public void send(PubSubResponse response, DeliveryCallback callback) {
+		ChannelFuture future = channel.write(response);
+		callbacks.put(future, callback);
+		future.addListener(this);
+		logger.info("[l...y] resend msg:"
+				+ response.getMessage().getBody().toStringUtf8()
+				+ " in channel................. ");
 
-    public void close() {
-        channel.close();
-    }
+	}
 
-    public void send(PubSubResponse response, DeliveryCallback callback) {
-        ChannelFuture future = channel.write(response);
-        callbacks.put(future, callback);
-        future.addListener(this);
-    }
+	public void operationComplete(ChannelFuture future) throws Exception {
+		DeliveryCallback callback = callbacks.get(future);
+		callbacks.remove(future);
 
-    public void operationComplete(ChannelFuture future) throws Exception {
-        DeliveryCallback callback = callbacks.get(future);
-        callbacks.remove(future);
+		if (callback == null) {
+			throw new UnexpectedError(
+					"Could not locate callback for channel future");
+		}
 
-        if (callback == null) {
-            throw new UnexpectedError("Could not locate callback for channel future");
-        }
+		if (future.isSuccess()) {
+			// just change here
+			// don't want to change original code everywhere, so use the
+			// following code
 
-        if (future.isSuccess()) {
-            // just change here
-            // don't want to change original code everywhere, so use the
-            // following code
-            
-        } else {
-            // treat all channel errors as permanent
-            /* msgbus modified, add a parameter*/
-            
-        }
+		} else {
+			// treat all channel errors as permanent
+			/* msgbus modified, add a parameter */
 
-    }
+		}
 
-    @Override
-    public boolean equals(Object obj) {
-        if (obj instanceof ChannelEndPoint) {
-            ChannelEndPoint channelEndPoint = (ChannelEndPoint) obj;
-            return channel.equals(channelEndPoint.channel);
-        } else {
-            return false;
-        }
-    }
+	}
 
-    @Override
-    public int hashCode() {
-        return channel.hashCode();
-    }
+	@Override
+	public boolean equals(Object obj) {
+		if (obj instanceof ChannelEndPoint) {
+			ChannelEndPoint channelEndPoint = (ChannelEndPoint) obj;
+			return channel.equals(channelEndPoint.channel);
+		} else {
+			return false;
+		}
+	}
 
-    @Override
-    public String toString() {
-        return channel.toString();
-    }
+	@Override
+	public int hashCode() {
+		return channel.hashCode();
+	}
+
+	@Override
+	public String toString() {
+		return channel.toString();
+	}
 }

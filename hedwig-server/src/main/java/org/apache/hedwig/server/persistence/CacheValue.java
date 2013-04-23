@@ -20,82 +20,84 @@ package org.apache.hedwig.server.persistence;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.hedwig.protocol.PubSubProtocol.Message;
 import org.apache.hedwig.server.common.UnexpectedError;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class is NOT thread safe. It need not be thread-safe because our
  * read-ahead cache will operate with only 1 thread
- *
+ * 
  */
 public class CacheValue {
 
-    static Logger logger = LoggerFactory.getLogger(ReadAheadCache.class);
+	static Logger logger = LoggerFactory.getLogger(ReadAheadCache.class);
 
-    // Actually we don't care the order of callbacks
-    // when a scan callback, it should be delivered to both callbacks
-    Set<ScanCallbackWithContext> callbacks = new HashSet<ScanCallbackWithContext>();
-    Message message;
-    long timeOfAddition = 0;
+	// Actually we don't care the order of callbacks
+	// when a scan callback, it should be delivered to both callbacks
+	Set<ScanCallbackWithContext> callbacks = new HashSet<ScanCallbackWithContext>();
+	Message message;
+	long timeOfAddition = 0;
 
-    public CacheValue() {
-    }
+	public CacheValue() {
+	}
 
-    public boolean isStub() {
-        return message == null;
-    }
+	public boolean isStub() {
+		return message == null;
+	}
 
-    public long getTimeOfAddition() {
-        if (message == null) {
-            throw new UnexpectedError("Time of add requested from a stub");
-        }
-        return timeOfAddition;
-    }
+	public long getTimeOfAddition() {
+		if (message == null) {
+			throw new UnexpectedError("Time of add requested from a stub");
+		}
+		return timeOfAddition;
+	}
 
-    public void setMessageAndInvokeCallbacks(Message message, long currTime) {
-        if (this.message != null) {
-            // Duplicate read for the same message coming back            
-            return;
-        }
+	public void setMessageAndInvokeCallbacks(Message message, long currTime) {
+		// if (this.message != null) {
+		// // Duplicate read for the same message coming back
+		// return;
+		// }
 
-        this.message = message;
-        this.timeOfAddition = currTime;
+		this.message = message;
+		this.timeOfAddition = currTime;
 
-        logger.debug("Invoking {} callbacks for {} message added to cache", callbacks.size(), message);
-        for (ScanCallbackWithContext callbackWithCtx : callbacks) {
-            if (null != callbackWithCtx) {
-                callbackWithCtx.getScanCallback().messageScanned(callbackWithCtx.getCtx(), message);
-            }
-        }
-    }
+		logger.debug("Invoking {} callbacks for {} message added to cache",
+				callbacks.size(), message);
+		for (ScanCallbackWithContext callbackWithCtx : callbacks) {
+			if (null != callbackWithCtx) {
+				callbackWithCtx.getScanCallback().messageScanned(
+						callbackWithCtx.getCtx(), message);
+			}
+		}
+	}
 
-    public boolean removeCallback(ScanCallback callback, Object ctx) {
-        return callbacks.remove(new ScanCallbackWithContext(callback, ctx));
-    }
+	public boolean removeCallback(ScanCallback callback, Object ctx) {
+		return callbacks.remove(new ScanCallbackWithContext(callback, ctx));
+	}
 
-    public void addCallback(ScanCallback callback, Object ctx) {
-        if (!isStub()) {
-            // call the callback right away
-            callback.messageScanned(ctx, message);
-            return;
-        }
+	public void addCallback(ScanCallback callback, Object ctx) {
+		if (!isStub()) {
+			// call the callback right away
+			callback.messageScanned(ctx, message);
+			return;
+		}
 
-        callbacks.add(new ScanCallbackWithContext(callback, ctx));
-    }
+		callbacks.add(new ScanCallbackWithContext(callback, ctx));
+	}
 
-    public Message getMessage() {
-        return message;
-    }
+	public Message getMessage() {
+		return message;
+	}
 
-    public void setErrorAndInvokeCallbacks(Exception exception) {
-        for (ScanCallbackWithContext callbackWithCtx : callbacks) {
-            if (null != callbackWithCtx) {
-                callbackWithCtx.getScanCallback().scanFailed(callbackWithCtx.getCtx(), exception);
-            }
-        }
-    }
+	public void setErrorAndInvokeCallbacks(Exception exception) {
+		for (ScanCallbackWithContext callbackWithCtx : callbacks) {
+			if (null != callbackWithCtx) {
+				callbackWithCtx.getScanCallback().scanFailed(
+						callbackWithCtx.getCtx(), exception);
+			}
+		}
+	}
 
 }

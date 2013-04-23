@@ -1,0 +1,10 @@
+----------------------------------------------------------------
+Tue Apr 09 18:47:15 CST 2013:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.8.2.2 - (1181258): instance a816c00e-013d-ee68-2297-00000096b298 
+on database directory C:\Users\ly\AppData\Local\Temp\derby4597720784582171837.tmp  with class loader sun.misc.Launcher$AppClassLoader@513cf0 
+Loaded from file:/F:/cloud%20compute/maven/repository/org/apache/derby/derby/10.8.2.2/derby-10.8.2.2.jar
+java.vendor=Oracle Corporation
+java.runtime.version=1.7.0_01-b08
+user.dir=C:\Users\ly\Git\msgbus\hedwig-server
+derby.system.home=null
+Database Class Loader started - derby.database.classpath=''

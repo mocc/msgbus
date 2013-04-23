@@ -11,7 +11,7 @@ import org.apache.hedwig.exceptions.PubSubException;
 import org.apache.hedwig.protocol.PubSubProtocol.PublishResponse;
 import org.apache.hedwig.server.HedwigHubTestBase1;
 import org.apache.hedwig.server.common.ServerConfiguration;
-import org.apache.hedwig.server.test.Tools;
+import org.apache.hedwig.server.qos.QosUtils;
 import org.apache.hedwig.util.Callback;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -148,7 +148,7 @@ public class TestConsumerCluster extends HedwigHubTestBase1 {
 
             @Override
             public void run() {
-                Tools t = new Tools();
+                QosUtils t = new QosUtils();
 
                 String[] myArgs = new String[3];
                 myArgs[0] = "messageQueue-test";
@@ -171,7 +171,7 @@ public class TestConsumerCluster extends HedwigHubTestBase1 {
             @Override
             public void run() {
                 // TODO Auto-generated method stub
-                Tools t = new Tools();
+                QosUtils t = new QosUtils();
 
                 String[] myArgs = new String[3];
                 myArgs[0] = "messageQueue-test";
