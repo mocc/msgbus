@@ -15,7 +15,6 @@ import org.apache.hedwig.protocol.PubSubProtocol.Message;
 import org.apache.hedwig.protocol.PubSubProtocol.MessageSeqId;
 import org.apache.hedwig.protocol.PubSubProtocol.PublishResponse;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest.CreateOrAttach;
-import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionEvent;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionOptions;
 import org.apache.hedwig.server.HedwigHubTestBase1;
 import org.apache.hedwig.util.Callback;
@@ -37,7 +36,7 @@ public class TestMsgBusClient extends HedwigHubTestBase1 {
     // SynchronousQueues to verify async calls
     private final SynchronousQueue<Boolean> queue = new SynchronousQueue<Boolean>();
     private final SynchronousQueue<Boolean> consumeQueue = new SynchronousQueue<Boolean>();
-    private final SynchronousQueue<SubscriptionEvent> eventQueue = new SynchronousQueue<SubscriptionEvent>();
+    private final SynchronousQueue<Boolean> deliveryQueue = new SynchronousQueue<Boolean>();
 
     class TestCallback implements Callback<Void> {
 
@@ -68,15 +67,16 @@ public class TestMsgBusClient extends HedwigHubTestBase1 {
     // Test implementation of subscriber's message handler.
     class TestMessageHandler implements MessageHandler {
 
-        private final SynchronousQueue<Boolean> consumeQueue;
+        private final SynchronousQueue<Boolean> deliveryQueue;
 
         public TestMessageHandler() {
-            this.consumeQueue = TestMsgBusClient.this.consumeQueue;
+            this.deliveryQueue = TestMsgBusClient.this.deliveryQueue;
         }
 
-        public TestMessageHandler(SynchronousQueue<Boolean> consumeQueue) {
-            this.consumeQueue = consumeQueue;
-        }
+        //
+        // public TestMessageHandler(SynchronousQueue<Boolean> consumeQueue) {
+        // this.consumeQueue = consumeQueue;
+        // }
 
         public void deliver(ByteString topic, ByteString subscriberId, Message msg, Callback<Void> callback,
                 Object context) {
@@ -85,7 +85,7 @@ public class TestMsgBusClient extends HedwigHubTestBase1 {
                 public void run() {
                     if (logger.isDebugEnabled())
                         logger.debug("Consume operation finished successfully!");
-                    ConcurrencyUtils.put(TestMessageHandler.this.consumeQueue, true);
+                    ConcurrencyUtils.put(TestMessageHandler.this.deliveryQueue, true);
                 }
             }).start();
             callback.operationFinished(context, null);
@@ -249,7 +249,7 @@ public class TestMsgBusClient extends HedwigHubTestBase1 {
         msgClient.publish(queueName, "Message#testStartDelivery");
         // Start delivery for the subscriber
         msgClient.startDelivery(queueName, new TestMessageHandler(), options);
-        assertTrue(consumeQueue.take());
+        assertTrue(deliveryQueue.take());
 
         msgClient.stopDelivery(queueName);
         msgClient.closeSubscription(queueName);
@@ -268,7 +268,7 @@ public class TestMsgBusClient extends HedwigHubTestBase1 {
         // subscriber.
         msgClient.publish(queueName, "Message#testStartDelivery");
         // Start delivery for the subscriber
-        msgClient.startDelivery(queueName, new TestMessageHandler() {
+        msgClient.startDelivery(queueName, new MessageHandler() {
             @Override
             public void deliver(ByteString topic, ByteString subscriberId, Message msg, Callback<Void> callback,
                     Object context) {
