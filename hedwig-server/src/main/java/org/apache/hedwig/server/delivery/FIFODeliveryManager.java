@@ -578,7 +578,7 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 		}
 
 		protected synchronized void messageConsumed(long newSeqIdConsumed) {
-			// logger.info("enter messagedConsumed................");
+			logger.info("enter messagedConsumed................");
 			if (newSeqIdConsumed <= lastSeqIdConsumedUtil) {
 				return;
 			}
@@ -590,7 +590,7 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 			lastSeqIdConsumedUtil = newSeqIdConsumed;
 			// after updated seq id check whether it still exceed msg limitation
 			if (msgLimitExceeded()) {
-				// logger.info("not delivering from messageConsumed.................");
+				logger.info("not delivering from messageConsumed.................");
 				return;
 			}
 			if (isThrottled) {
@@ -607,7 +607,7 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 					}
 				});
 			} else {
-				// logger.info("isThrottled is false..............");
+				logger.info("isThrottled is false..............");
 			}
 		}
 
@@ -715,8 +715,8 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 		 */
 
 		public void messageScanned(Object ctx, Message message) {
-			// logger.info("message" + message.getBody().toStringUtf8()
-			// + "scanned");
+			logger.info("message" + message.getBody().toStringUtf8()
+					+ "scanned");
 			if (!checkConnected()) {
 				return;
 			}
@@ -1257,9 +1257,9 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 				AbstractSubscriptionManager sm, Callback<Void> callback,
 				Object ctx) {
 			// test
-			// logger.info("enter addConsumeSeqIdToCluster...Consumed seq: "
-			// + consumeSeqId.getLocalComponent() + ". lastConsumedSeq: "
-			// + lastConsumedSeq);
+			logger.info("enter addConsumeSeqIdToCluster...Consumed seq: "
+					+ consumeSeqId.getLocalComponent() + ". lastConsumedSeq: "
+					+ lastConsumedSeq);
 
 			// just for test
 			// if (lastConsumedSeq % 10000 == 0) {

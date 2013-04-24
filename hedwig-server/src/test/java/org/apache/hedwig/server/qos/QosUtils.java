@@ -26,7 +26,8 @@ public class QosUtils {
 	 */
 	static AtomicInteger numReceived = new AtomicInteger(0);
 	static CountDownLatch receiveLatch = new CountDownLatch(1);
-	protected static final Logger logger = LoggerFactory.getLogger(QosUtils.class);
+	protected static final Logger logger = LoggerFactory
+			.getLogger(QosUtils.class);
 	static Message message = null;
 	static int count = 0;
 
@@ -290,7 +291,7 @@ public class QosUtils {
 		t1.start();
 		// /////////////////////////////////////////////////////////////////
 		assertTrue("Timed out waiting on callback for messages.",
-				receiveLatch.await(10, TimeUnit.SECONDS));
+				receiveLatch.await(13, TimeUnit.SECONDS));
 		// mqClient.stopDelivery(queueName);
 		mqClient1.closeSubscription(queueName);
 
