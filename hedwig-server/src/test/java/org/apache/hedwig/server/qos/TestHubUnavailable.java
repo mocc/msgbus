@@ -19,16 +19,13 @@ package org.apache.hedwig.server.qos;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.hedwig.client.api.MessageHandler;
-import org.apache.hedwig.exceptions.PubSubException;
 import org.apache.hedwig.exceptions.PubSubException.ClientNotSubscribedException;
 import org.apache.hedwig.protocol.PubSubProtocol.Message;
-import org.apache.hedwig.protocol.PubSubProtocol.PublishResponse;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest.CreateOrAttach;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionOptions;
 import org.apache.hedwig.server.HedwigHubTestBase2;
@@ -109,12 +106,6 @@ public class TestHubUnavailable extends HedwigHubTestBase2 {
 		System.out.println("enter ..........................constructor");
 	}
 
-	public List<PubSubServer> getServer() {
-		// TODO Auto-generated method stub
-		return super.getServer();
-
-	}
-
 	@BeforeClass
 	public static void oneTimeSetUp() {
 		// one-time initialization code
@@ -132,93 +123,83 @@ public class TestHubUnavailable extends HedwigHubTestBase2 {
 		return new TestServerConfiguration(port, sslPort);
 	}
 
-	public void testMessageQueueClient_pub() throws Exception {
-		// String path = "F:/conf/hw_client.conf";
-		final MsgBusClient msgBusClient = new MsgBusClient(
-				new TestClientConfiguration());
-		final MessageQueueClient client = msgBusClient.getMessageQueueClient();
+	protected class RecvConfiguration {
 
-		final String queueName = "messageQueue-test";
-		int length = 1;
-		StringBuffer sb = new StringBuffer("");
-		for (int i = 0; i < length; i++) {
-			sb.append("a");
-		}
-		final String prefix = sb.toString();
+		AtomicInteger numReceived = new AtomicInteger(0);
+		CountDownLatch receiveLatch = new CountDownLatch(1);
+		String queueName = "messageQueue-test";
+		int numMessages = 500;
+		SubscriptionOptions options;
 
-		final int numMessages = 500;
-
-		final AtomicInteger numPublished = new AtomicInteger(0);
-		final CountDownLatch publishLatch = new CountDownLatch(1);
-		// final Map<String, MessageSeqId> publishedMsgs = new HashMap<String,
-		// MessageSeqId>();
-
-		long start = System.currentTimeMillis();
-
-		System.out.println("Start to asynsPublish!");
-		client.createQueue(queueName);
-		client.publish(queueName, prefix + 1);
-
-		// publishedMsgs.put(prefix+0, res.getPublishedMsgId());
-		if (numMessages == numPublished.incrementAndGet()) {
-			publishLatch.countDown();
+		RecvConfiguration(String queueName, int numMessages,
+				int messageWindowSize) {
+			this.queueName = queueName;
+			this.numMessages = numMessages;
+			this.options = SubscriptionOptions.newBuilder()
+					.setCreateOrAttach(CreateOrAttach.CREATE_OR_ATTACH)
+					.setEnableResubscribe(false)
+					.setMessageWindowSize(messageWindowSize).build();
 		}
 
-		for (int i = 2; i <= numMessages; i++) {
-
-			final String str = prefix + i;
-
-			client.asyncPublishWithResponse(queueName, str,
-					new Callback<PublishResponse>() {
-						@Override
-						public void operationFinished(Object ctx,
-								PublishResponse response) {
-							// map, same message content results wrong
-							// publishedMsgs.put(str,
-							// response.getPublishedMsgId());
-							if (numMessages == numPublished.incrementAndGet()) {
-								publishLatch.countDown();
-							}
-						}
-
-						@Override
-						public void operationFailed(Object ctx,
-								final PubSubException exception) {
-						}
-					}, null);
+		public AtomicInteger getNumReceived() {
+			return numReceived;
 		}
-		long end = System.currentTimeMillis();
 
-		// wait the work to finish
-		assertTrue("Timed out waiting on callback for publish requests.",
-				publishLatch.await(3, TimeUnit.SECONDS));
+		public void setNumReceived(AtomicInteger numReceived) {
+			this.numReceived = numReceived;
+		}
 
-		System.out.println("AsyncPublished " + numMessages + " messages in "
-				+ (end - start) + " ms.");
-		// return client;
+		public CountDownLatch getReceiveLatch() {
+			return receiveLatch;
+		}
+
+		public void setReceiveLatch(CountDownLatch receiveLatch) {
+			this.receiveLatch = receiveLatch;
+		}
+
+		public String getQueueName() {
+			return queueName;
+		}
+
+		public void setQueueName(String queueName) {
+			this.queueName = queueName;
+		}
+
+		public int getNumMessages() {
+			return numMessages;
+		}
+
+		public void setNumMessages(int numMessages) {
+			this.numMessages = numMessages;
+		}
+
+		public SubscriptionOptions getOptions() {
+			return options;
+		}
+
+		public void setOptions(SubscriptionOptions options) {
+			this.options = options;
+		}
+
 	}
 
-	public void Recv() throws Exception {
-		System.out.println("enter.........................rec");
-		final PubSubServer defaultServer = this.getServer().get(0);
-		final AtomicInteger numReceived = new AtomicInteger(0);
-		final CountDownLatch receiveLatch = new CountDownLatch(1);
-
-		final String queueName = "messageQueue-test";
-		final int numMessages = Integer.parseInt("500");
-		SubscriptionOptions options = SubscriptionOptions.newBuilder()
-				.setCreateOrAttach(CreateOrAttach.CREATE_OR_ATTACH)
-				.setEnableResubscribe(false).setMessageWindowSize(500).build();
+	/*
+	 * A hub is shutdown while receiving messages,then we create another client
+	 * and register it to another available hub.We will test whether the second
+	 * hub can take the topic on the unavailable hub over.
+	 */
+	public void topicOwnershipChangeOverHubUnavailable() throws Exception {
+		final PubSubServer defaultServer = super.getServer().get(0);
+		final RecvConfiguration rcConfig = new RecvConfiguration(
+				"messageQueue-test", 500, 500);
 
 		final MsgBusClient client = new MsgBusClient(this.getClass()
 				.getResource("/hw_client.conf"));
 		final MessageQueueClient mqClient = client.getMessageQueueClient();
-		mqClient.createQueue(queueName);
-
-		System.out.println("numMessages:::::" + numMessages);
+		mqClient.createQueue(rcConfig.queueName);
 		long start = System.currentTimeMillis();
 
-		mqClient.startDelivery(queueName, new MessageHandler() {
+		mqClient.startDelivery(rcConfig.queueName, new MessageHandler() {
 
 			@Override
 			synchronized public void deliver(ByteString topic,
@@ -228,42 +209,42 @@ public class TestHubUnavailable extends HedwigHubTestBase2 {
 						+ msg.getMsgId().getLocalComponent() + "::"
 						+ msg.getBody().toStringUtf8());
 
-				if (numMessages == numReceived.incrementAndGet()) {
+				if (rcConfig.numMessages == rcConfig.numReceived
+						.incrementAndGet()) {
 					try {
-						mqClient.stopDelivery(queueName);
+						mqClient.stopDelivery(rcConfig.queueName);
 
 					} catch (ClientNotSubscribedException e) {
 					}
-					receiveLatch.countDown();
+					rcConfig.receiveLatch.countDown();
 				}
 				try {
 					System.out.println(Thread.currentThread().getName()
 							+ ":: consume.."
 							+ msg.getMsgId().getLocalComponent() + "::"
 							+ msg.getBody().toStringUtf8());
-					mqClient.consumeMessage(queueName, msg.getMsgId());
+					mqClient.consumeMessage(rcConfig.queueName, msg.getMsgId());
 
 				} catch (ClientNotSubscribedException e) {
 					e.printStackTrace();
 				}
 
 			}
-		}, options);
+		}, rcConfig.options);
 
 		TimeUnit.MILLISECONDS.sleep(10);
 		logger.info("will shut down default server.........");
 		defaultServer.shutdown();
-		mqClient.closeSubscription(queueName);
+		mqClient.closeSubscription(rcConfig.queueName);
 		logger.info("default server is shut down.............");
 		TimeUnit.MILLISECONDS.sleep(10);
-		// mqClient1.createQueue(queueName);
-		// System.out.println("mq1 finish create.................");
+
 		final MsgBusClient client1 = new MsgBusClient(this.getClass()
 				.getResource("/hw_client1.conf"));
 		final MessageQueueClient mqClient1 = client1.getMessageQueueClient();
-		mqClient1.createQueue(queueName);
-		System.out.println("mq1 finish create.................");
-		mqClient1.startDelivery(queueName, new MessageHandler() {
+		mqClient1.createQueue(rcConfig.queueName);
+		logger.info("mq1 finish create.................");
+		mqClient1.startDelivery(rcConfig.queueName, new MessageHandler() {
 
 			@Override
 			synchronized public void deliver(ByteString topic,
@@ -273,46 +254,44 @@ public class TestHubUnavailable extends HedwigHubTestBase2 {
 						+ msg.getMsgId().getLocalComponent() + "::"
 						+ msg.getBody().toStringUtf8());
 
-				if (numMessages == numReceived.incrementAndGet()) {
+				if (rcConfig.numMessages == rcConfig.numReceived
+						.incrementAndGet()) {
 					try {
-						mqClient1.stopDelivery(queueName);
+						mqClient1.stopDelivery(rcConfig.queueName);
 
 					} catch (ClientNotSubscribedException e) {
 					}
-					receiveLatch.countDown();
+					rcConfig.receiveLatch.countDown();
 				}
 				try {
 					System.out.println(Thread.currentThread().getName()
 							+ ":: consume.."
 							+ msg.getMsgId().getLocalComponent() + "::"
 							+ msg.getBody().toStringUtf8());
-					mqClient1.consumeMessage(queueName, msg.getMsgId());
+					mqClient1.consumeMessage(rcConfig.queueName, msg.getMsgId());
 
 				} catch (ClientNotSubscribedException e) {
 					e.printStackTrace();
 				}
 
 			}
-		}, options);
+		}, rcConfig.options);
 		System.out.println("mq1 start deliver.................");
 		assertTrue("Timed out waiting on callback for messages.",
-				receiveLatch.await(15, TimeUnit.SECONDS));
-		mqClient1.closeSubscription(queueName);
+				rcConfig.receiveLatch.await(15, TimeUnit.SECONDS));
+		mqClient1.closeSubscription(rcConfig.queueName);
 		long end = System.currentTimeMillis();
-		System.out.println(Thread.currentThread().getName()
+		logger.info(Thread.currentThread().getName()
 				+ "..........receiving finished.");
-		System.out.println("numReceived:" + numReceived.get());
-		System.out.println(Thread.currentThread().getName()
+		logger.info("numReceived:" + rcConfig.numReceived.get());
+		logger.info(Thread.currentThread().getName()
 				+ "::Time cost for receiving is " + (end - start) + " ms.");
 	}
 
 	@Test
-	public void test() throws Exception {
-
-		testMessageQueueClient_pub();
-		Recv();
-
+	public void testHubUnavailable() throws Exception {
+		new QosUtils().testMessageQueueClient_pub("messageQueue-test", 500);
+		topicOwnershipChangeOverHubUnavailable();
 		Thread.sleep(20000);
-		System.out.println("quit...........main");
 	}
 }

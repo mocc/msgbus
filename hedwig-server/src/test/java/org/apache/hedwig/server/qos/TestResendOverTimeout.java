@@ -19,24 +19,15 @@ package org.apache.hedwig.server.qos;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.hedwig.exceptions.PubSubException;
-import org.apache.hedwig.protocol.PubSubProtocol.PublishResponse;
 import org.apache.hedwig.server.HedwigHubTestBase1;
 import org.apache.hedwig.server.common.ServerConfiguration;
-import org.apache.hedwig.util.Callback;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
-
-import com.yonyou.msgbus.client.MessageQueueClient;
-import com.yonyou.msgbus.client.MsgBusClient;
 
 @RunWith(Parameterized.class)
 public class TestResendOverTimeout extends HedwigHubTestBase1 {
@@ -118,74 +109,8 @@ public class TestResendOverTimeout extends HedwigHubTestBase1 {
 		return new TestServerConfiguration(port, sslPort);
 	}
 
-	public void testMessageQueueClient_pub() throws Exception {
-		// String path = "F:/conf/hw_client.conf";
-		final MsgBusClient msgBusClient = new MsgBusClient(
-				new TestClientConfiguration());
-		final MessageQueueClient client = msgBusClient.getMessageQueueClient();
-
-		final String queueName = "messageQueue-test";
-		int length = 1;
-		StringBuffer sb = new StringBuffer("");
-		for (int i = 0; i < length; i++) {
-			sb.append("a");
-		}
-		final String prefix = sb.toString();
-
-		final int numMessages = 500;
-
-		final AtomicInteger numPublished = new AtomicInteger(0);
-		final CountDownLatch publishLatch = new CountDownLatch(1);
-		// final Map<String, MessageSeqId> publishedMsgs = new HashMap<String,
-		// MessageSeqId>();
-
-		long start = System.currentTimeMillis();
-
-		System.out.println("Start to asynsPublish!");
-		client.createQueue(queueName);
-		client.publish(queueName, prefix + 1);
-
-		// publishedMsgs.put(prefix+0, res.getPublishedMsgId());
-		if (numMessages == numPublished.incrementAndGet()) {
-			publishLatch.countDown();
-		}
-
-		for (int i = 2; i <= numMessages; i++) {
-
-			final String str = prefix + i;
-
-			client.asyncPublishWithResponse(queueName, str,
-					new Callback<PublishResponse>() {
-						@Override
-						public void operationFinished(Object ctx,
-								PublishResponse response) {
-							// map, same message content results wrong
-							// publishedMsgs.put(str,
-							// response.getPublishedMsgId());
-							if (numMessages == numPublished.incrementAndGet()) {
-								publishLatch.countDown();
-							}
-						}
-
-						@Override
-						public void operationFailed(Object ctx,
-								final PubSubException exception) {
-						}
-					}, null);
-		}
-		long end = System.currentTimeMillis();
-
-		// wait the work to finish
-		assertTrue("Timed out waiting on callback for publish requests.",
-				publishLatch.await(3, TimeUnit.SECONDS));
-
-		System.out.println("AsyncPublished " + numMessages + " messages in "
-				+ (end - start) + " ms.");
-		// return client;
-	}
-
 	@Test
-	public void test() throws Exception {
+	public void testResendOverDisconnect() throws Exception {
 
 		class QueueConsumer implements Runnable {
 
@@ -199,25 +124,21 @@ public class TestResendOverTimeout extends HedwigHubTestBase1 {
 				myArgs[2] = "0";
 
 				try {
-					t.recv1(myArgs);
+					t.recv_forResendOverTimeout(myArgs);
 					System.out.println(Thread.currentThread().getName()
 							+ ":quit.............recv");
 				} catch (Exception e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				// System.out.println("receiving finished.");
 			}
 
 		}
 
-		testMessageQueueClient_pub();
+		new QosUtils().testMessageQueueClient_pub("messageQueue-test", 500);
 		new Thread(new QueueConsumer()).start();
-		System.out.println("loop...........main");
 
 		Thread.sleep(25000);
-		// while (true) {
-		// }
 		System.out.println("quit...........main");
 
 	}
