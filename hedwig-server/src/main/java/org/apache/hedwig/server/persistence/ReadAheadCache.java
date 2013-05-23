@@ -293,6 +293,7 @@ public class ReadAheadCache implements PersistenceManager, HedwigJMXService {
 	 */
 	public void scanSingleMessage(ScanRequest request) {
 		// Let the scan requests be serialized through the queue
+		logger.info("enter scanSingleMessage" + request.getStartSeqId());
 		enqueueWithoutFailureByTopic(request.getTopic(),
 				new ScanRequestWrapper(request));
 	}

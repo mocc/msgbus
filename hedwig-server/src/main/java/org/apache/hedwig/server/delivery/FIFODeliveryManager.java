@@ -578,7 +578,7 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 		}
 
 		protected synchronized void messageConsumed(long newSeqIdConsumed) {
-			// logger.info("enter messagedConsumed................");
+			logger.info("messageConsumed()::enter messagedConsumed................");
 			if (newSeqIdConsumed <= lastSeqIdConsumedUtil) {
 				return;
 			}
@@ -590,7 +590,7 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 			lastSeqIdConsumedUtil = newSeqIdConsumed;
 			// after updated seq id check whether it still exceed msg limitation
 			if (msgLimitExceeded()) {
-				// logger.info("not delivering from messageConsumed.................");
+				logger.info("messageConsumed()::not delivering from messageConsumed,will return.................");
 				return;
 			}
 			if (isThrottled) {
@@ -607,7 +607,7 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 					}
 				});
 			} else {
-				// logger.info("isThrottled is false..............");
+				logger.info("messageConsumed()::isThrottled is false..............");
 			}
 		}
 
@@ -715,8 +715,8 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 		 */
 
 		public void messageScanned(Object ctx, Message message) {
-			// logger.info("message" + message.getBody().toStringUtf8()
-			// + "scanned");
+			logger.info("messageScanned()::message"
+					+ message.getBody().toStringUtf8() + "scanned");
 			if (!checkConnected()) {
 				return;
 			}
@@ -736,7 +736,7 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 			// Suppose that happens rarely, so don't check delivering in advance
 			// Put message in retryMessageQueue.
 			if (qc == null) {
-				logger.info("Can't find waiting queueConsumer. Put the message "
+				logger.info("messageScanned()::Can't find waiting queueConsumer. Put the message "
 						+ message.getMsgId().getLocalComponent()
 						+ " in retryMessageQueue.");
 				consumerCluster.retryMessageQueue.add(new UnConsumedSeq(message
@@ -793,7 +793,7 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 			consumerCluster.qcMoveLock.unlock();
 			if (consumerCluster.waitingConsumers.size() == 0) {
 				delivering.set(false);
-				logger.info("waitingConsumers.size=0,set delivering=false...");
+				logger.info("messageScanned()::waitingConsumers.size=0,set delivering=false...");
 			}
 			/* <--msgbus modified */
 
@@ -1257,9 +1257,10 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 				AbstractSubscriptionManager sm, Callback<Void> callback,
 				Object ctx) {
 			// test
-			// logger.info("enter addConsumeSeqIdToCluster...Consumed seq: "
-			// + consumeSeqId.getLocalComponent() + ". lastConsumedSeq: "
-			// + lastConsumedSeq);
+			logger.info("addConsumeSeqIdToCluster()::enter addConsumeSeqIdToCluster...Consumed seq: "
+					+ consumeSeqId.getLocalComponent()
+					+ ". lastConsumedSeq: "
+					+ lastConsumedSeq);
 
 			// just for test
 			// if (lastConsumedSeq % 10000 == 0) {
@@ -1305,7 +1306,7 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 			// finally check the states
 			// To avoid using lock as far as possible
 			if (qc.isWaiting.get() == false) {
-				logger.info("qc is busy");
+				logger.info("addConsumeSeqIdToCluster()::qc is busy");
 				ass.consumerCluster.qcMoveLock.lock();
 				if (qc.isWaiting.get() == false
 						&& qc.unConsumedMsgSeqs.size() < qc.messageWindowSize) {
@@ -1344,7 +1345,7 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 				// logger.info("" + unconsumedseq.toString());
 				// sb.append("" + unconsumedseq.toString());
 				// }
-				logger.info("addConsumeSeqIdToCluster("
+				logger.info("addConsumeSeqIdToCluster()::addConsumeSeqIdToCluster("
 						+ consumeSeqId.getLocalComponent()
 						+ "): Some messages are in retryMessageQueue.");
 
@@ -1578,7 +1579,8 @@ public class FIFODeliveryManager implements Runnable, DeliveryManager,
 				cc.retryMessageQueue.remove(unConsumedSeq);
 				ScanRequest scanRequest = new ScanRequest(cc.ass.topic,
 						unConsumedSeq.seq, cc.ass, unConsumedSeq.seq);
-				logger.info("[l...y] Resend: " + unConsumedSeq.seq);
+				logger.info("[l...y] Resend Request: " + unConsumedSeq.seq
+						+ "will first scan message");
 				persistenceMgr.scanSingleMessage(scanRequest);
 			}
 

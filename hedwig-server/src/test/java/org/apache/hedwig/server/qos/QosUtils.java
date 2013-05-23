@@ -7,8 +7,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.hedwig.client.api.MessageHandler;
+import org.apache.hedwig.exceptions.PubSubException;
 import org.apache.hedwig.exceptions.PubSubException.ClientNotSubscribedException;
 import org.apache.hedwig.protocol.PubSubProtocol.Message;
+import org.apache.hedwig.protocol.PubSubProtocol.PublishResponse;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscribeRequest.CreateOrAttach;
 import org.apache.hedwig.protocol.PubSubProtocol.SubscriptionOptions;
 import org.apache.hedwig.util.Callback;
@@ -24,19 +26,78 @@ public class QosUtils {
 	/**
 	 * @param args
 	 */
+	protected static final Logger logger = LoggerFactory
+			.getLogger(QosUtils.class);
 	static AtomicInteger numReceived = new AtomicInteger(0);
 	static CountDownLatch receiveLatch = new CountDownLatch(1);
-	protected static final Logger logger = LoggerFactory.getLogger(QosUtils.class);
 	static Message message = null;
 	static int count = 0;
 
 	/**
-	 * This api is for test
+	 * This api is for test publishing messages
 	 * 
 	 * @param args
 	 * @throws Exception
 	 */
-	public void recv(String[] args) throws Exception {
+	public void testMessageQueueClient_pub(final String queueName,
+			final int numMessages) throws Exception {
+		final MsgBusClient msgBusClient = new MsgBusClient(
+				new TestHubUnavailable(true).new TestClientConfiguration());
+		final MessageQueueClient client = msgBusClient.getMessageQueueClient();
+
+		int length = 1;
+		StringBuffer sb = new StringBuffer("");
+		for (int i = 0; i < length; i++) {
+			sb.append("a");
+		}
+		final String prefix = sb.toString();
+
+		final AtomicInteger numPublished = new AtomicInteger(0);
+		final CountDownLatch publishLatch = new CountDownLatch(1);
+
+		long start = System.currentTimeMillis();
+
+		System.out.println("Start to asynsPublish!");
+		client.createQueue(queueName);
+		client.publish(queueName, prefix + 1);
+		if (numMessages == numPublished.incrementAndGet()) {
+			publishLatch.countDown();
+		}
+
+		for (int i = 2; i <= numMessages; i++) {
+
+			final String str = prefix + i;
+
+			client.asyncPublishWithResponse(queueName, str,
+					new Callback<PublishResponse>() {
+						@Override
+						public void operationFinished(Object ctx,
+								PublishResponse response) {
+							// map, same message content results wrong
+							// publishedMsgs.put(str,
+							// response.getPublishedMsgId());
+							if (numMessages == numPublished.incrementAndGet()) {
+								publishLatch.countDown();
+							}
+						}
+
+						@Override
+						public void operationFailed(Object ctx,
+								final PubSubException exception) {
+						}
+					}, null);
+		}
+		long end = System.currentTimeMillis();
+
+		// wait the work to finish
+		assertTrue("Timed out waiting on callback for publish requests.",
+				publishLatch.await(3, TimeUnit.SECONDS));
+
+		System.out.println("AsyncPublished " + numMessages + " messages in "
+				+ (end - start) + " ms.");
+	}
+
+	public void recv_forConsumerCluster(String[] args) throws Exception {
 		System.out.println("enter.........................rec");
 		// java.security.Security.setProperty("networkaddress.cache.ttl", "0");
 		final String queueName = args[0];
@@ -106,7 +167,7 @@ public class QosUtils {
 				+ "::Time cost for receiving is " + (end - start) + " ms.");
 	}
 
-	public void recv1(String[] args) throws Exception {
+	public void recv_forResendOverTimeout(String[] args) throws Exception {
 		System.out.println("enter.........................rec");
 		// java.security.Security.setProperty("networkaddress.cache.ttl", "0");
 		final String queueName = args[0];
@@ -184,7 +245,7 @@ public class QosUtils {
 				+ "::Time cost for receiving is " + (end - start) + " ms.");
 	}
 
-	public void recv2(String[] args) throws Exception {
+	public void recv_forResendOverDisconnect(String[] args) throws Exception {
 		System.out.println("enter.........................rec");
 		// java.security.Security.setProperty("networkaddress.cache.ttl", "0");
 		final String queueName = args[0];
@@ -290,7 +351,7 @@ public class QosUtils {
 		t1.start();
 		// /////////////////////////////////////////////////////////////////
 		assertTrue("Timed out waiting on callback for messages.",
-				receiveLatch.await(10, TimeUnit.SECONDS));
+				receiveLatch.await(13, TimeUnit.SECONDS));
 		// mqClient.stopDelivery(queueName);
 		mqClient1.closeSubscription(queueName);
 
