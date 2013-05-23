@@ -32,140 +32,137 @@ import org.junit.runners.Parameterized.Parameters;
 @RunWith(Parameterized.class)
 public class TestConsumerCluster extends HedwigHubTestBase1 {
 
-	private static final int DEFAULT_MESSAGE_WINDOW_SIZE = 10;
+    private static final int DEFAULT_MESSAGE_WINDOW_SIZE = 10;
 
-	protected class ConsumerClusterServerConfiguration extends
-			HubServerConfiguration {
+    protected class ConsumerClusterServerConfiguration extends HubServerConfiguration {
 
-		ConsumerClusterServerConfiguration(int serverPort, int sslServerPort) {
-			super(serverPort, sslServerPort);
-		}
+        ConsumerClusterServerConfiguration(int serverPort, int sslServerPort) {
+            super(serverPort, sslServerPort);
+        }
 
-		@Override
-		public int getDefaultMessageWindowSize() {
-			return TestConsumerCluster.DEFAULT_MESSAGE_WINDOW_SIZE;
-		}
-	}
+        @Override
+        public int getDefaultMessageWindowSize() {
+            return TestConsumerCluster.DEFAULT_MESSAGE_WINDOW_SIZE;
+        }
+    }
 
-	protected class TestClientConfiguration extends HubClientConfiguration {
+    protected class TestClientConfiguration extends HubClientConfiguration {
 
-		int messageWindowSize;
+        int messageWindowSize;
 
-		TestClientConfiguration() {
-			this.messageWindowSize = 100;
-		}
+        TestClientConfiguration() {
+            this.messageWindowSize = 100;
+        }
 
-		TestClientConfiguration(int messageWindowSize) {
-			this.messageWindowSize = messageWindowSize;
-		}
+        TestClientConfiguration(int messageWindowSize) {
+            this.messageWindowSize = messageWindowSize;
+        }
 
-		@Override
-		public int getMaximumOutstandingMessages() {
-			return messageWindowSize;
-		}
+        @Override
+        public int getMaximumOutstandingMessages() {
+            return messageWindowSize;
+        }
 
-		void setMessageWindowSize(int messageWindowSize) {
-			this.messageWindowSize = messageWindowSize;
-		}
+        void setMessageWindowSize(int messageWindowSize) {
+            this.messageWindowSize = messageWindowSize;
+        }
 
-		@Override
-		public boolean isAutoSendConsumeMessageEnabled() {
-			return false;
-		}
+        @Override
+        public boolean isAutoSendConsumeMessageEnabled() {
+            return false;
+        }
 
-		@Override
-		public boolean isSubscriptionChannelSharingEnabled() {
-			return isSubscriptionChannelSharingEnabled;
-		}
-	}
+        @Override
+        public boolean isSubscriptionChannelSharingEnabled() {
+            return isSubscriptionChannelSharingEnabled;
+        }
+    }
 
-	@Parameters
-	public static Collection<Object[]> configs() {
-		return Arrays.asList(new Object[][] { { true } /* , { true } */});
-	}
+    @Parameters
+    public static Collection<Object[]> configs() {
+        return Arrays.asList(new Object[][] { { true } /* , { true } */});
+    }
 
-	protected boolean isSubscriptionChannelSharingEnabled;
+    protected boolean isSubscriptionChannelSharingEnabled;
 
-	public TestConsumerCluster(boolean isSubscriptionChannelSharingEnabled) {
+    public TestConsumerCluster(boolean isSubscriptionChannelSharingEnabled) {
 
-		super(1);
-		this.isSubscriptionChannelSharingEnabled = isSubscriptionChannelSharingEnabled;
-		// System.out.println("enter ..........................constructor");
-	}
+        super(1);
+        this.isSubscriptionChannelSharingEnabled = isSubscriptionChannelSharingEnabled;
+        // System.out.println("enter ..........................constructor");
+    }
 
-	@BeforeClass
-	public static void oneTimeSetUp() {
-		// one-time initialization code
-		System.setProperty("build.test.dir", "F:\\logDir");
-	}
+    @BeforeClass
+    public static void oneTimeSetUp() {
+        // one-time initialization code
+        System.setProperty("build.test.dir", "F:\\logDir");
+    }
 
-	@Override
-	@Before
-	public void setUp() throws Exception {
-		super.setUp();
-	}
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+    }
 
-	@Override
-	protected ServerConfiguration getServerConfiguration(int port, int sslPort) {
-		return new ConsumerClusterServerConfiguration(port, sslPort);
-	}
+    @Override
+    protected ServerConfiguration getServerConfiguration(int port, int sslPort) {
+        return new ConsumerClusterServerConfiguration(port, sslPort);
+    }
 
-	@Test
-	public void testConsumerCluster() throws Exception {
+    @Test
+    public void testConsumerCluster() throws Exception {
 
-		class QueueConsumer1 implements Runnable {
+        class QueueConsumer1 implements Runnable {
 
-			@Override
-			public void run() {
+            @Override
+            public void run() {
 
-				QosUtils t = new QosUtils();
+                QosUtils t = new QosUtils();
 
-				String[] myArgs = new String[3];
-				myArgs[0] = "messageQueue-test";
-				myArgs[1] = "500";
-				myArgs[2] = "0";
+                String[] myArgs = new String[3];
+                myArgs[0] = "messageQueue-test";
+                myArgs[1] = "500";
+                myArgs[2] = "0";
 
-				try {
-					t.recv_forConsumerCluster(myArgs);
-					logger.info(Thread.currentThread().getName()
-							+ ":quit.............recv");
-				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
+                try {
+                    t.recv_forConsumerCluster(myArgs);
+                    logger.info(Thread.currentThread().getName() + ":quit.............recv");
+                } catch (Exception e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+            }
 
-		}
-		class QueueConsumer2 implements Runnable {
+        }
+        class QueueConsumer2 implements Runnable {
 
-			@Override
-			public void run() {
-				// TODO Auto-generated method stub
-				QosUtils t = new QosUtils();
+            @Override
+            public void run() {
+                // TODO Auto-generated method stub
+                QosUtils t = new QosUtils();
 
-				String[] myArgs = new String[3];
-				myArgs[0] = "messageQueue-test";
-				myArgs[1] = "500";
-				myArgs[2] = "1";
+                String[] myArgs = new String[3];
+                myArgs[0] = "messageQueue-test";
+                myArgs[1] = "500";
+                myArgs[2] = "1";
 
-				try {
-					t.recv_forConsumerCluster(myArgs);
-					logger.info(Thread.currentThread().getName()
-							+ ":quit.............recv");
-				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
+                try {
+                    t.recv_forConsumerCluster(myArgs);
+                    logger.info(Thread.currentThread().getName() + ":quit.............recv");
+                } catch (Exception e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+            }
 
-		}
+        }
 
-		new QosUtils().testMessageQueueClient_pub("messageQueue-test", 1000);
-		new Thread(new QueueConsumer1()).start();
-		new Thread(new QueueConsumer2()).start();
+        new QosUtils().testMessageQueueClient_pub("messageQueue-test", 1000);
+        new Thread(new QueueConsumer1()).start();
+        new Thread(new QueueConsumer2()).start();
 
-		Thread.sleep(15000);
-		logger.info("quit...........main");
+        Thread.sleep(15000);
+        logger.info("quit...........main");
 
-	}
+    }
 }
