@@ -28,6 +28,11 @@ import org.slf4j.LoggerFactory;
 
 import com.google.protobuf.ByteString;
 
+/***
+ * this class contains APIs for messageQueue client, which is fit for the
+ * message queue model
+ * 
+ */
 public class MessageQueueClient {
 
     static final Logger logger = LoggerFactory.getLogger(MessageQueueClient.class);
