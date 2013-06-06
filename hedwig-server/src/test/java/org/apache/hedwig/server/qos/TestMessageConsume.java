@@ -178,7 +178,7 @@ public class TestMessageConsume extends HedwigHubTestBase1 {
                 receivedMsgs.put(str, msg.getMsgId());
                 if (numMessages == numReceived.incrementAndGet()) {
                     receiveLatch.countDown();
-                    System.out.println("receiving work finished..........................");
+                    logger.info("receiving work finished..........................");
                 }
                 callback.operationFinished(context, null);
             }
@@ -201,7 +201,7 @@ public class TestMessageConsume extends HedwigHubTestBase1 {
                 e.printStackTrace();
             }
         }
-        System.out.println("consuming work finished..........................");
+        logger.info("consuming work finished..........................");
 
         long messageCount = queueClient.queryMessageCount(queueName);
         assertEquals("There are still messages in server cache!!", messageCount, numMessages - numConsume);

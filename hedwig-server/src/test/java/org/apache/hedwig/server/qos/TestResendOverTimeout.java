@@ -32,114 +32,113 @@ import org.junit.runners.Parameterized.Parameters;
 @RunWith(Parameterized.class)
 public class TestResendOverTimeout extends HedwigHubTestBase1 {
 
-	private static final int DEFAULT_MESSAGE_WINDOW_SIZE = 1000;
+    private static final int DEFAULT_MESSAGE_WINDOW_SIZE = 1000;
 
-	protected class TestServerConfiguration extends HubServerConfiguration {
+    protected class TestServerConfiguration extends HubServerConfiguration {
 
-		TestServerConfiguration(int serverPort, int sslServerPort) {
-			super(serverPort, sslServerPort);
-		}
+        TestServerConfiguration(int serverPort, int sslServerPort) {
+            super(serverPort, sslServerPort);
+        }
 
-		@Override
-		public int getDefaultMessageWindowSize() {
-			return TestResendOverTimeout.DEFAULT_MESSAGE_WINDOW_SIZE;
-		}
-	}
+        @Override
+        public int getDefaultMessageWindowSize() {
+            return TestResendOverTimeout.DEFAULT_MESSAGE_WINDOW_SIZE;
+        }
+    }
 
-	protected class TestClientConfiguration extends HubClientConfiguration {
+    protected class TestClientConfiguration extends HubClientConfiguration {
 
-		int messageWindowSize;
+        int messageWindowSize;
 
-		TestClientConfiguration() {
-			this.messageWindowSize = 50;
-		}
+        TestClientConfiguration() {
+            this.messageWindowSize = 50;
+        }
 
-		TestClientConfiguration(int messageWindowSize) {
-			this.messageWindowSize = messageWindowSize;
-		}
+        TestClientConfiguration(int messageWindowSize) {
+            this.messageWindowSize = messageWindowSize;
+        }
 
-		@Override
-		public int getMaximumOutstandingMessages() {
-			return messageWindowSize;
-		}
+        @Override
+        public int getMaximumOutstandingMessages() {
+            return messageWindowSize;
+        }
 
-		void setMessageWindowSize(int messageWindowSize) {
-			this.messageWindowSize = messageWindowSize;
-		}
+        void setMessageWindowSize(int messageWindowSize) {
+            this.messageWindowSize = messageWindowSize;
+        }
 
-		@Override
-		public boolean isAutoSendConsumeMessageEnabled() {
-			return false;
-		}
+        @Override
+        public boolean isAutoSendConsumeMessageEnabled() {
+            return false;
+        }
 
-		@Override
-		public boolean isSubscriptionChannelSharingEnabled() {
-			return isSubscriptionChannelSharingEnabled;
-		}
-	}
+        @Override
+        public boolean isSubscriptionChannelSharingEnabled() {
+            return isSubscriptionChannelSharingEnabled;
+        }
+    }
 
-	@Parameters
-	public static Collection<Object[]> configs() {
-		return Arrays.asList(new Object[][] { { true } /* , { true } */});
-	}
+    @Parameters
+    public static Collection<Object[]> configs() {
+        return Arrays.asList(new Object[][] { { true } /* , { true } */});
+    }
 
-	protected boolean isSubscriptionChannelSharingEnabled;
+    protected boolean isSubscriptionChannelSharingEnabled;
 
-	public TestResendOverTimeout(boolean isSubscriptionChannelSharingEnabled) {
+    public TestResendOverTimeout(boolean isSubscriptionChannelSharingEnabled) {
 
-		super(1);
-		this.isSubscriptionChannelSharingEnabled = isSubscriptionChannelSharingEnabled;
-		System.out.println("enter ..........................constructor");
-	}
+        super(1);
+        this.isSubscriptionChannelSharingEnabled = isSubscriptionChannelSharingEnabled;
+        logger.info("enter ..........................constructor");
+    }
 
-	@BeforeClass
-	public static void oneTimeSetUp() {
-		// one-time initialization code
-		System.setProperty("build.test.dir", "F:\\logDir");
-	}
+    @BeforeClass
+    public static void oneTimeSetUp() {
+        // one-time initialization code
+        System.setProperty("build.test.dir", "F:\\logDir");
+    }
 
-	@Override
-	@Before
-	public void setUp() throws Exception {
-		super.setUp();
-	}
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+    }
 
-	@Override
-	protected ServerConfiguration getServerConfiguration(int port, int sslPort) {
-		return new TestServerConfiguration(port, sslPort);
-	}
+    @Override
+    protected ServerConfiguration getServerConfiguration(int port, int sslPort) {
+        return new TestServerConfiguration(port, sslPort);
+    }
 
-	@Test
-	public void testResendOverDisconnect() throws Exception {
+    @Test
+    public void testResendOverDisconnect() throws Exception {
 
-		class QueueConsumer implements Runnable {
+        class QueueConsumer implements Runnable {
 
-			@Override
-			public void run() {
-				QosUtils t = new QosUtils();
+            @Override
+            public void run() {
+                QosUtils t = new QosUtils();
 
-				String[] myArgs = new String[3];
-				myArgs[0] = "messageQueue-test";
-				myArgs[1] = "500";
-				myArgs[2] = "0";
+                String[] myArgs = new String[3];
+                myArgs[0] = "messageQueue-test";
+                myArgs[1] = "500";
+                myArgs[2] = "0";
 
-				try {
-					t.recv_forResendOverTimeout(myArgs);
-					System.out.println(Thread.currentThread().getName()
-							+ ":quit.............recv");
-				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
+                try {
+                    t.recv_forResendOverTimeout(myArgs);
+                    logger.info(Thread.currentThread().getName() + ":quit.............recv");
+                } catch (Exception e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+            }
 
-		}
+        }
 
-		new QosUtils().testMessageQueueClient_pub("messageQueue-test", 500);
-		new Thread(new QueueConsumer()).start();
+        new QosUtils().testMessageQueueClient_pub("messageQueue-test", 500);
+        new Thread(new QueueConsumer()).start();
 
-		Thread.sleep(25000);
-		System.out.println("quit...........main");
+        Thread.sleep(25000);
+        logger.info("quit...........main");
 
-	}
+    }
 }
