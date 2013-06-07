@@ -45,6 +45,9 @@ public class PubSubClient {
      * 
      * @param topic
      * @param msg
+     *            Java String type. Message size is limited in
+     *            hedwig-server-configuration file, default MAX_MESSAGE_SIZE is
+     *            1.2M.
      * @return PublishResponse
      * @throws CouldNotConnectException
      * @throws ServiceDownException
@@ -62,6 +65,9 @@ public class PubSubClient {
      * 
      * @param topic
      * @param msg
+     *            Java String type. Message size is limited in
+     *            hedwig-server-configuration file, default MAX_MESSAGE_SIZE is
+     *            1.2M.
      * @param callback
      * @param context
      */
@@ -77,6 +83,9 @@ public class PubSubClient {
      * 
      * @param topic
      * @param msg
+     *            Java String type. Message size is limited in
+     *            hedwig-server-configuration file, default MAX_MESSAGE_SIZE is
+     *            1.2M.
      * @param callback
      * @param context
      */
@@ -96,6 +105,23 @@ public class PubSubClient {
     }
 
     // merge with above function
+    /**
+     * this function is used to subscribe to a topic for a pubsub client in a
+     * synchronous way.
+     * 
+     * @param topic
+     *            Java String type, letters and numbers are suggested. Since
+     *            topic will be as a znode's name in ZK, its naming should
+     *            follow some rules: 1.String type,cann't be null.can't be just
+     *            '.' or '..' 2.The following characters had better not be used
+     *            : \u0001 - \u0019 and \u007F - \u009F 3.The following
+     *            characters are not allowed: \ud800 -uF8FFF, \uFFF0-uFFFF,
+     *            \\uXFFFE -\\uXFFFF (where X is a digit 1 - E, double
+     *            backslashes are just used to suppress the warning.), \uF0000 -
+     *            \uFFFFF
+     * @param subscriberId
+     * @param options
+     */
     public void subscribe(String topic, String subscriberId, SubscriptionOptions options)
             throws CouldNotConnectException, ClientAlreadySubscribedException, ServiceDownException,
             InvalidSubscriberIdException {
@@ -104,6 +130,25 @@ public class PubSubClient {
         subscriber.subscribe(myTopic, mySubscriberId, options);
     }
 
+    /**
+     * this function is used to subscribe to a topic for a pubsub client in a
+     * asynchronous way.
+     * 
+     * @param topic
+     *            Java String type, letters and numbers are suggested. Since
+     *            topic will be as a znode's name in ZK, its naming should
+     *            follow some rules: 1.String type,cann't be null.can't be just
+     *            '.' or '..' 2.The following characters had better not be used
+     *            : \u0001 - \u0019 and \u007F - \u009F 3.The following
+     *            characters are not allowed: \ud800 -uF8FFF, \uFFF0-uFFFF,
+     *            \\uXFFFE -\\uXFFFF (where X is a digit 1 - E, double
+     *            backslashes are just used to suppress the warning.), \uF0000 -
+     *            \uFFFFF
+     * @param subscriberId
+     * @param mode
+     * @param callback
+     * @param context
+     */
     protected void asyncSubscribe(String topic, String subscriberId, CreateOrAttach mode, Callback<Void> callback,
             Object context) {
         ByteString myTopic = ByteString.copyFromUtf8(topic);

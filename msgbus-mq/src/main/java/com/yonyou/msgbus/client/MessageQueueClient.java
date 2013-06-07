@@ -39,6 +39,7 @@ public class MessageQueueClient {
 
     private Publisher publisher;
     private Subscriber subscriber;
+    String str = "%";
 
     // Invisible to users
     MessageQueueClient(Publisher publisher, Subscriber subscriber) {
@@ -46,6 +47,22 @@ public class MessageQueueClient {
         this.subscriber = subscriber;
     }
 
+    /**
+     * 
+     * @param queueName
+     *            Java String type, letters and numbers are suggested. Since the
+     *            queueName will be as a znode's name in ZK, its naming should
+     *            follow some rules: 1.String type,cann't be null.can't be just
+     *            '.' or '..' 2.The following characters had better not be used
+     *            : \u0001 - \u0019 and \u007F - \u009F 3.The following
+     *            characters are not allowed: \ud800 -uF8FFF, \uFFF0-uFFFF,
+     *            \\uXFFFE -\\uXFFFF (where X is a digit 1 - E, double
+     *            backslashes are just used to suppress the warning.), \uF0000 -
+     *            \uFFFFF
+     * 
+     * @return return true,if the queue creation succeeds,else return false
+     * @throws InterruptedException
+     */
     public boolean createQueue(String queueName) throws InterruptedException {
         final CountDownLatch signal = new CountDownLatch(1);
         final AtomicBoolean bSuccess = new AtomicBoolean(false);
@@ -72,7 +89,6 @@ public class MessageQueueClient {
         return bSuccess.get();
     }
 
-    // ok?
     public boolean deleteQueue(String queueName) throws InterruptedException {
         final CountDownLatch signal = new CountDownLatch(1);
         final AtomicBoolean bSuccess = new AtomicBoolean(false);
@@ -128,18 +144,53 @@ public class MessageQueueClient {
         return count.get();
     }
 
+    /**
+     * publish messages to certain topic in a synchronous way
+     * 
+     * @param queueName
+     * @param msg
+     *            Java String type. Message size is limited in
+     *            hedwig-server-configuration file, default MAX_MESSAGE_SIZE is
+     *            1.2M.
+     * @return
+     * @throws CouldNotConnectException
+     * @throws ServiceDownException
+     */
     public PublishResponse publish(String queueName, String msg) throws CouldNotConnectException, ServiceDownException {
         ByteString topic = ByteString.copyFromUtf8(queueName);
         Message message = Message.newBuilder().setBody(ByteString.copyFromUtf8(msg)).build();
         return publisher.publish(topic, message);
     }
 
+    /**
+     * publish messages to certain topic in a asynchronous way
+     * 
+     * @param queueName
+     * @param msg
+     *            Java String type. Message size is limited in
+     *            hedwig-server-configuration file, default MAX_MESSAGE_SIZE is
+     *            1.2M.
+     * @param callback
+     * @param context
+     */
     public void asyncPublish(String queueName, String msg, Callback<Void> callback, Object context) {
         ByteString topic = ByteString.copyFromUtf8(queueName);
         Message message = Message.newBuilder().setBody(ByteString.copyFromUtf8(msg)).build();
         publisher.asyncPublish(topic, message, callback, context);
     }
 
+    /**
+     * publish messages to certain topic in a asynchronous way, a response will
+     * be returned.
+     * 
+     * @param queueName
+     * @param msg
+     *            Java String type. Message size is limited in
+     *            hedwig-server-configuration file, default MAX_MESSAGE_SIZE is
+     *            1.2M.
+     * @param callback
+     * @param context
+     */
     public void asyncPublishWithResponse(String queueName, String msg, Callback<PublishResponse> callback,
             Object context) {
         ByteString topic = ByteString.copyFromUtf8(queueName);
